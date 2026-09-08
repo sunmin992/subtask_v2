@@ -1,0 +1,70 @@
+spring:
+  application:
+    name: ses-scenario-server
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/ses_scenario}
+    username: ${DB_USER:ses}
+    password: ${DB_PASSWORD:ses}
+    hikari:
+      maximum-pool-size: 10
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      # 스키마는 Flyway 가 관리한다. Hibernate 가 손대면 두 곳이 어긋난다.
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc.time_zone: UTC
+        format_sql: false
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+
+  jackson:
+    default-property-inclusion: non_null
+
+app:
+  # jpa | memory — memory 로 두면 PostgreSQL 없이 뜬다 (application-memory.yml 참고).
+  persistence: jpa
+  seed-demo-domain: true
+
+llm:
+  # auto | disabled | anthropic | openai-compatible(=ollama, vllm, llamacpp, openrouter ...)
+  #
+  # auto 는 Anthropic 키가 있으면 그쪽을, 없으면 비활성을 고른다. 어느 쪽이든 서버는
+  # 정상적으로 뜨고 전체 흐름이 돈다 — 라우팅은 키워드로, 슬롯은 질문으로 대체된다.
+  # 오픈 모델은 application-ollama.yml 프로파일을 참고한다.
+  provider: ${LLM_PROVIDER:auto}
+  api-key: ${ANTHROPIC_API_KEY:}
+  base-url: https://api.anthropic.com
+  model: claude-sonnet-5
+  model-by-purpose:
+    # 분류는 값싼 일이다. 큰 모델을 쓸 이유가 없다.
+    ROUTING: claude-haiku-4-5-20251001
+  temperature: 0.2
+  max-tokens: 4096
+  timeout-ms: 60000
+  max-retries: 3
+  json-mode: true
+  max-parse-attempts: 2
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+
+server:
+  port: ${PORT:8080}
+  error:
+    include-message: always
+
+logging:
+  level:
+    org.hanbat.ses: INFO

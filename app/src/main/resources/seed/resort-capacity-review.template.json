@@ -1,0 +1,342 @@
+{
+  "id": "resort-capacity-review",
+  "version": "1.0.0",
+  "name": "리조트 수용력 검토",
+  "routing": {
+    "triggerPatterns": [
+      "수용력",
+      "혼잡",
+      "대기열",
+      "capacity"
+    ],
+    "intentDescription": "리조트 구성이 정해진 상태에서 방문객 급증 시 대기열과 만실 거절을 검토",
+    "priority": 5,
+    "prerequisites": [
+      {
+        "taskId": "resort-simulation",
+        "reason": "검토할 리조트 구성이 먼저 정해져야 한다",
+        "required": true
+      }
+    ]
+  },
+  "slots": [
+    {
+      "kind": "STRUCTURAL",
+      "name": "이동설비",
+      "anchor": {
+        "entityPath": "리조트/이동설비",
+        "axis": "SPECIALIZATION",
+        "targetNodeId": "spec-transport",
+        "varName": null
+      },
+      "structuralKind": "SELECT",
+      "options": [
+        "케이블카",
+        "셔틀버스",
+        "모노레일"
+      ],
+      "question": {
+        "text": "리조트 내 주 이동수단은 무엇인가요?",
+        "reaskText": "케이블카, 셔틀버스, 모노레일 중에서 골라주세요.",
+        "hint": null
+      },
+      "dependsOn": []
+    },
+    {
+      "kind": "STRUCTURAL",
+      "name": "숙박시설",
+      "anchor": {
+        "entityPath": "리조트/숙박시설",
+        "axis": "SPECIALIZATION",
+        "targetNodeId": "spec-lodging",
+        "varName": null
+      },
+      "structuralKind": "SELECT",
+      "options": [
+        "호텔",
+        "콘도"
+      ],
+      "question": {
+        "text": "숙박시설은 어떤 형태인가요?",
+        "reaskText": "호텔과 콘도 중에서 골라주세요.",
+        "hint": null
+      },
+      "dependsOn": []
+    },
+    {
+      "kind": "STRUCTURAL",
+      "name": "버스대수",
+      "anchor": {
+        "entityPath": "리조트/이동설비/셔틀버스/버스",
+        "axis": "MULTI_ASPECT",
+        "targetNodeId": "multi-bus",
+        "varName": null
+      },
+      "structuralKind": "MULTIPLICITY",
+      "options": [],
+      "question": {
+        "text": "셔틀버스는 몇 대를 운행하나요?",
+        "reaskText": null,
+        "hint": "1~10대"
+      },
+      "dependsOn": [
+        "이동설비"
+      ]
+    },
+    {
+      "kind": "VALUE",
+      "name": "케이블카.정원",
+      "anchor": {
+        "entityPath": "리조트/이동설비/케이블카",
+        "axis": "VARIABLE",
+        "targetNodeId": "ent-cablecar",
+        "varName": "정원"
+      },
+      "type": "INT",
+      "unit": "명",
+      "range": {
+        "min": 1.0,
+        "max": 200.0,
+        "allowed": [],
+        "empty": false
+      },
+      "defaultValue": 8,
+      "inferable": true,
+      "question": {
+        "text": "케이블카 1대당 정원은 몇 명인가요?",
+        "reaskText": null,
+        "hint": "보통 6~10인승입니다."
+      },
+      "dependsOn": [
+        "이동설비"
+      ]
+    },
+    {
+      "kind": "VALUE",
+      "name": "케이블카.운행간격",
+      "anchor": {
+        "entityPath": "리조트/이동설비/케이블카",
+        "axis": "VARIABLE",
+        "targetNodeId": "ent-cablecar",
+        "varName": "운행간격"
+      },
+      "type": "DOUBLE",
+      "unit": "분",
+      "range": {
+        "min": 0.5,
+        "max": 30.0,
+        "allowed": [],
+        "empty": false
+      },
+      "defaultValue": 3.0,
+      "inferable": true,
+      "question": {
+        "text": "케이블카 운행 간격은 몇 분인가요?",
+        "reaskText": null,
+        "hint": null
+      },
+      "dependsOn": [
+        "이동설비"
+      ]
+    },
+    {
+      "kind": "VALUE",
+      "name": "모노레일.정원",
+      "anchor": {
+        "entityPath": "리조트/이동설비/모노레일",
+        "axis": "VARIABLE",
+        "targetNodeId": "ent-monorail",
+        "varName": "정원"
+      },
+      "type": "INT",
+      "unit": "명",
+      "range": {
+        "min": 1.0,
+        "max": 300.0,
+        "allowed": [],
+        "empty": false
+      },
+      "defaultValue": 60,
+      "inferable": true,
+      "question": {
+        "text": "모노레일 1편성 정원은 몇 명인가요?",
+        "reaskText": null,
+        "hint": null
+      },
+      "dependsOn": [
+        "이동설비"
+      ]
+    },
+    {
+      "kind": "VALUE",
+      "name": "모노레일.배차간격",
+      "anchor": {
+        "entityPath": "리조트/이동설비/모노레일",
+        "axis": "VARIABLE",
+        "targetNodeId": "ent-monorail",
+        "varName": "배차간격"
+      },
+      "type": "DOUBLE",
+      "unit": "분",
+      "range": {
+        "min": 1.0,
+        "max": 60.0,
+        "allowed": [],
+        "empty": false
+      },
+      "defaultValue": 10.0,
+      "inferable": true,
+      "question": {
+        "text": "모노레일 배차 간격은 몇 분인가요?",
+        "reaskText": null,
+        "hint": null
+      },
+      "dependsOn": [
+        "이동설비"
+      ]
+    },
+    {
+      "kind": "VALUE",
+      "name": "버스.정원",
+      "anchor": {
+        "entityPath": "리조트/이동설비/셔틀버스/버스",
+        "axis": "VARIABLE",
+        "targetNodeId": "ent-bus",
+        "varName": "정원"
+      },
+      "type": "INT",
+      "unit": "명",
+      "range": {
+        "min": 1.0,
+        "max": 60.0,
+        "allowed": [],
+        "empty": false
+      },
+      "defaultValue": 25,
+      "inferable": true,
+      "question": {
+        "text": "셔틀버스 1대당 정원은 몇 명인가요?",
+        "reaskText": null,
+        "hint": null
+      },
+      "dependsOn": [
+        "버스대수"
+      ]
+    },
+    {
+      "kind": "VALUE",
+      "name": "호텔.객실수",
+      "anchor": {
+        "entityPath": "리조트/숙박시설/호텔",
+        "axis": "VARIABLE",
+        "targetNodeId": "ent-hotel",
+        "varName": "객실수"
+      },
+      "type": "INT",
+      "unit": "실",
+      "range": {
+        "min": 1.0,
+        "max": 2000.0,
+        "allowed": [],
+        "empty": false
+      },
+      "defaultValue": 200,
+      "inferable": true,
+      "question": {
+        "text": "호텔 객실은 몇 실인가요?",
+        "reaskText": null,
+        "hint": null
+      },
+      "dependsOn": [
+        "숙박시설"
+      ]
+    },
+    {
+      "kind": "VALUE",
+      "name": "콘도.객실수",
+      "anchor": {
+        "entityPath": "리조트/숙박시설/콘도",
+        "axis": "VARIABLE",
+        "targetNodeId": "ent-condo",
+        "varName": "객실수"
+      },
+      "type": "INT",
+      "unit": "실",
+      "range": {
+        "min": 1.0,
+        "max": 2000.0,
+        "allowed": [],
+        "empty": false
+      },
+      "defaultValue": 150,
+      "inferable": true,
+      "question": {
+        "text": "콘도 객실은 몇 실인가요?",
+        "reaskText": null,
+        "hint": null
+      },
+      "dependsOn": [
+        "숙박시설"
+      ]
+    }
+  ],
+  "dialogue": {
+    "maxTurns": 6,
+    "maxQuestionsPerTurn": 3,
+    "unfilledPolicy": "USE_DEFAULT"
+  },
+  "binding": {
+    "sesDefinitionId": "resort-ses",
+    "rootEntity": "리조트",
+    "pruningRules": {},
+    "extraCouplings": []
+  },
+  "validation": {
+    "crossFieldRules": [
+      {
+        "expression": "#정원 * (60.0 / #운행간격) >= 60.0 / #도착간격",
+        "message": "케이블카 수송력이 방문객 도착 속도보다 낮습니다. 정원을 늘리거나 운행 간격을 줄여주세요.",
+        "involves": [
+          "정원",
+          "운행간격",
+          "도착간격"
+        ]
+      }
+    ],
+    "unitAliases": {
+      "hr": "시간",
+      "min": "분"
+    }
+  },
+  "execution": {
+    "llm": {
+      "model": null,
+      "temperature": 0.2,
+      "maxTokens": 4096
+    },
+    "mcpTools": [],
+    "simulator": {
+      "engine": "devs-internal",
+      "timeResolution": 1.0,
+      "horizon": 2880.0,
+      "seed": 42,
+      "mode": "SINGLE",
+      "replications": 1,
+      "timeoutMs": 30000
+    }
+  },
+  "output": {
+    "format": "COMPOSITE",
+    "sections": [
+      "SUMMARY",
+      "TABLE",
+      "CHART"
+    ],
+    "failurePolicy": "PARTIAL_RESULT"
+  },
+  "meta": {
+    "author": "seed",
+    "createdAt": "2026-09-08",
+    "description": "구성이 정해진 리조트의 수용력 한계를 검토한다."
+  }
+}

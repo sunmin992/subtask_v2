@@ -1,0 +1,502 @@
+{
+  "id": "resort-ses",
+  "domain": "resort",
+  "version": "1.0.0",
+  "tree": {
+    "nodeType": "ENTITY",
+    "id": "ent-resort",
+    "name": "리조트",
+    "vars": [],
+    "axes": [
+      {
+        "nodeType": "ASPECT",
+        "id": "asp-core",
+        "name": "구성",
+        "components": [
+          {
+            "nodeType": "ENTITY",
+            "id": "ent-arrival",
+            "name": "방문객생성기",
+            "vars": [
+              {
+                "name": "도착간격",
+                "type": "DOUBLE",
+                "unit": "분",
+                "value": null,
+                "defaultValue": 2.0,
+                "inferable": true,
+                "range": {
+                  "min": 0.1,
+                  "max": 120.0,
+                  "allowed": [],
+                  "empty": false
+                },
+                "open": false
+              },
+              {
+                "name": "총방문객",
+                "type": "INT",
+                "unit": "명",
+                "value": null,
+                "defaultValue": 500,
+                "inferable": true,
+                "range": {
+                  "min": 1.0,
+                  "max": 100000.0,
+                  "allowed": [],
+                  "empty": false
+                },
+                "open": false
+              }
+            ],
+            "axes": [],
+            "modelRef": "visitor-generator",
+            "ports": [
+              {
+                "name": "visitor",
+                "direction": "OUT",
+                "dataType": "any",
+                "unit": "명"
+              }
+            ],
+            "couplings": [],
+            "aliases": [],
+            "leaf": true
+          },
+          {
+            "nodeType": "ENTITY",
+            "id": "ent-transducer",
+            "name": "집계기",
+            "vars": [],
+            "axes": [],
+            "modelRef": "transducer",
+            "ports": [
+              {
+                "name": "arrive",
+                "direction": "IN",
+                "dataType": "any",
+                "unit": "명"
+              },
+              {
+                "name": "done",
+                "direction": "IN",
+                "dataType": "any",
+                "unit": "명"
+              }
+            ],
+            "couplings": [],
+            "aliases": [],
+            "leaf": true
+          }
+        ],
+        "couplings": []
+      },
+      {
+        "nodeType": "SPEC",
+        "id": "spec-transport",
+        "name": "이동설비",
+        "variants": [
+          {
+            "nodeType": "ENTITY",
+            "id": "ent-cablecar",
+            "name": "케이블카",
+            "vars": [
+              {
+                "name": "정원",
+                "type": "INT",
+                "unit": "명",
+                "value": null,
+                "defaultValue": null,
+                "inferable": false,
+                "range": {
+                  "min": 1.0,
+                  "max": 200.0,
+                  "allowed": [],
+                  "empty": false
+                },
+                "open": true
+              },
+              {
+                "name": "운행간격",
+                "type": "DOUBLE",
+                "unit": "분",
+                "value": null,
+                "defaultValue": null,
+                "inferable": false,
+                "range": {
+                  "min": 0.5,
+                  "max": 30.0,
+                  "allowed": [],
+                  "empty": false
+                },
+                "open": true
+              }
+            ],
+            "axes": [],
+            "modelRef": "cable-car",
+            "ports": [
+              {
+                "name": "in",
+                "direction": "IN",
+                "dataType": "any",
+                "unit": "명"
+              },
+              {
+                "name": "out",
+                "direction": "OUT",
+                "dataType": "any",
+                "unit": "명"
+              }
+            ],
+            "couplings": [],
+            "aliases": [
+              "곤돌라",
+              "리프트",
+              "로프웨이",
+              "gondola",
+              "cable car"
+            ],
+            "leaf": true
+          },
+          {
+            "nodeType": "ENTITY",
+            "id": "ent-shuttle",
+            "name": "셔틀버스",
+            "vars": [],
+            "axes": [
+              {
+                "nodeType": "MULTI",
+                "id": "multi-bus",
+                "name": "버스",
+                "prototype": {
+                  "nodeType": "ENTITY",
+                  "id": "ent-bus",
+                  "name": "버스",
+                  "vars": [
+                    {
+                      "name": "정원",
+                      "type": "INT",
+                      "unit": "명",
+                      "value": null,
+                      "defaultValue": null,
+                      "inferable": false,
+                      "range": {
+                        "min": 1.0,
+                        "max": 60.0,
+                        "allowed": [],
+                        "empty": false
+                      },
+                      "open": true
+                    },
+                    {
+                      "name": "왕복시간",
+                      "type": "DOUBLE",
+                      "unit": "분",
+                      "value": null,
+                      "defaultValue": 12.0,
+                      "inferable": true,
+                      "range": {
+                        "min": 1.0,
+                        "max": 120.0,
+                        "allowed": [],
+                        "empty": false
+                      },
+                      "open": false
+                    }
+                  ],
+                  "axes": [],
+                  "modelRef": "shuttle-bus",
+                  "ports": [
+                    {
+                      "name": "in",
+                      "direction": "IN",
+                      "dataType": "any",
+                      "unit": "명"
+                    },
+                    {
+                      "name": "out",
+                      "direction": "OUT",
+                      "dataType": "any",
+                      "unit": "명"
+                    }
+                  ],
+                  "couplings": [],
+                  "aliases": [],
+                  "leaf": true
+                },
+                "countRange": {
+                  "min": 1,
+                  "max": 10
+                },
+                "count": null,
+                "instances": [],
+                "resolved": false
+              }
+            ],
+            "modelRef": null,
+            "ports": [
+              {
+                "name": "in",
+                "direction": "IN",
+                "dataType": "any",
+                "unit": "명"
+              },
+              {
+                "name": "out",
+                "direction": "OUT",
+                "dataType": "any",
+                "unit": "명"
+              }
+            ],
+            "couplings": [
+              {
+                "kind": "EIC",
+                "fromEntity": "ent-shuttle",
+                "fromPort": "in",
+                "toEntity": "multi-bus",
+                "toPort": "in"
+              },
+              {
+                "kind": "EOC",
+                "fromEntity": "multi-bus",
+                "fromPort": "out",
+                "toEntity": "ent-shuttle",
+                "toPort": "out"
+              }
+            ],
+            "aliases": [
+              "셔틀",
+              "순환버스",
+              "shuttle"
+            ],
+            "leaf": false
+          },
+          {
+            "nodeType": "ENTITY",
+            "id": "ent-monorail",
+            "name": "모노레일",
+            "vars": [
+              {
+                "name": "정원",
+                "type": "INT",
+                "unit": "명",
+                "value": null,
+                "defaultValue": null,
+                "inferable": false,
+                "range": {
+                  "min": 1.0,
+                  "max": 300.0,
+                  "allowed": [],
+                  "empty": false
+                },
+                "open": true
+              },
+              {
+                "name": "배차간격",
+                "type": "DOUBLE",
+                "unit": "분",
+                "value": null,
+                "defaultValue": null,
+                "inferable": false,
+                "range": {
+                  "min": 1.0,
+                  "max": 60.0,
+                  "allowed": [],
+                  "empty": false
+                },
+                "open": true
+              }
+            ],
+            "axes": [],
+            "modelRef": "monorail",
+            "ports": [
+              {
+                "name": "in",
+                "direction": "IN",
+                "dataType": "any",
+                "unit": "명"
+              },
+              {
+                "name": "out",
+                "direction": "OUT",
+                "dataType": "any",
+                "unit": "명"
+              }
+            ],
+            "couplings": [],
+            "aliases": [
+              "경전철",
+              "monorail"
+            ],
+            "leaf": true
+          }
+        ],
+        "selectedVariantId": null,
+        "resolved": false
+      },
+      {
+        "nodeType": "SPEC",
+        "id": "spec-lodging",
+        "name": "숙박시설",
+        "variants": [
+          {
+            "nodeType": "ENTITY",
+            "id": "ent-hotel",
+            "name": "호텔",
+            "vars": [
+              {
+                "name": "객실수",
+                "type": "INT",
+                "unit": "실",
+                "value": null,
+                "defaultValue": null,
+                "inferable": false,
+                "range": {
+                  "min": 1.0,
+                  "max": 2000.0,
+                  "allowed": [],
+                  "empty": false
+                },
+                "open": true
+              },
+              {
+                "name": "평균숙박시간",
+                "type": "DOUBLE",
+                "unit": "분",
+                "value": null,
+                "defaultValue": 600.0,
+                "inferable": true,
+                "range": {
+                  "min": 30.0,
+                  "max": 4320.0,
+                  "allowed": [],
+                  "empty": false
+                },
+                "open": false
+              }
+            ],
+            "axes": [],
+            "modelRef": "lodging",
+            "ports": [
+              {
+                "name": "in",
+                "direction": "IN",
+                "dataType": "any",
+                "unit": "명"
+              },
+              {
+                "name": "out",
+                "direction": "OUT",
+                "dataType": "any",
+                "unit": "명"
+              }
+            ],
+            "couplings": [],
+            "aliases": [
+              "숙소",
+              "리조트호텔",
+              "hotel"
+            ],
+            "leaf": true
+          },
+          {
+            "nodeType": "ENTITY",
+            "id": "ent-condo",
+            "name": "콘도",
+            "vars": [
+              {
+                "name": "객실수",
+                "type": "INT",
+                "unit": "실",
+                "value": null,
+                "defaultValue": null,
+                "inferable": false,
+                "range": {
+                  "min": 1.0,
+                  "max": 2000.0,
+                  "allowed": [],
+                  "empty": false
+                },
+                "open": true
+              },
+              {
+                "name": "평균숙박시간",
+                "type": "DOUBLE",
+                "unit": "분",
+                "value": null,
+                "defaultValue": 720.0,
+                "inferable": true,
+                "range": {
+                  "min": 30.0,
+                  "max": 4320.0,
+                  "allowed": [],
+                  "empty": false
+                },
+                "open": false
+              }
+            ],
+            "axes": [],
+            "modelRef": "lodging",
+            "ports": [
+              {
+                "name": "in",
+                "direction": "IN",
+                "dataType": "any",
+                "unit": "명"
+              },
+              {
+                "name": "out",
+                "direction": "OUT",
+                "dataType": "any",
+                "unit": "명"
+              }
+            ],
+            "couplings": [],
+            "aliases": [
+              "콘도미니엄",
+              "빌라",
+              "condo"
+            ],
+            "leaf": true
+          }
+        ],
+        "selectedVariantId": null,
+        "resolved": false
+      }
+    ],
+    "modelRef": null,
+    "ports": [],
+    "couplings": [
+      {
+        "kind": "IC",
+        "fromEntity": "ent-arrival",
+        "fromPort": "visitor",
+        "toEntity": "spec-transport",
+        "toPort": "in"
+      },
+      {
+        "kind": "IC",
+        "fromEntity": "spec-transport",
+        "fromPort": "out",
+        "toEntity": "spec-lodging",
+        "toPort": "in"
+      },
+      {
+        "kind": "IC",
+        "fromEntity": "spec-lodging",
+        "fromPort": "out",
+        "toEntity": "ent-transducer",
+        "toPort": "done"
+      },
+      {
+        "kind": "IC",
+        "fromEntity": "ent-arrival",
+        "fromPort": "visitor",
+        "toEntity": "ent-transducer",
+        "toPort": "arrive"
+      }
+    ],
+    "aliases": [],
+    "leaf": false
+  }
+}

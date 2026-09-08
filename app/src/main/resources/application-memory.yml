@@ -1,0 +1,14 @@
+# DB 없이 도는 프로파일.
+#
+# Phase 1~3 은 LLM 도 DB 도 없이 완성한다는 계획을 그대로 실행할 수 있게 해 준다.
+# E2E 테스트와 로컬 시연이 이 프로파일을 쓴다.
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerAutoConfiguration
+      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
+      - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
+
+app:
+  persistence: memory

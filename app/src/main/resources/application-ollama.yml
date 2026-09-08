@@ -1,0 +1,32 @@
+# 로컬 오픈 모델(Ollama) 프로파일.
+#
+#   ollama serve                      # 데몬
+#   ollama pull qwen2.5:7b            # 모델
+#   ./gradlew :app:bootRun --args='--spring.profiles.active=memory,ollama'
+#
+# OpenAI 호환 엔드포인트를 쓰므로 vLLM · llama.cpp server · LM Studio 도
+# base-url 과 model 만 바꾸면 그대로 붙는다.
+llm:
+  provider: openai-compatible
+  base-url: ${OLLAMA_URL:http://localhost:11434}
+  # 이 목록에서 JSON 스키마 준수가 가장 안정적이었다. 컨텍스트도 32K 로 넉넉하다.
+  model: ${OLLAMA_MODEL:qwen2.5:7b}
+  model-by-purpose:
+    # 반드시 명시한다. 프로파일 YAML 은 맵을 통째로 갈아끼우지 않고 키 단위로 병합하므로,
+    # 여기서 비워 두면 기본 application.yml 의 claude-haiku-... 가 그대로 남아
+    # Ollama 에 "모델 없음(404)" 으로 날아간다.
+    #
+    # 값은 기본 모델과 같게 둔다. Anthropic 설정에서는 라우팅에 Haiku 를 쓰지만 —
+    # 작아도 지시를 잘 따르는 모델이다 — 그 논리를 오픈 모델에 옮기면 안 된다.
+    # llama3.2:3b 로 라우팅을 시켜 보니 템플릿은 맞게 고르면서 confidence 를 늘 0.0 으로
+    # 주고 스키마에 없는 필드를 덧붙였다. 신뢰도 임계값에서 전부 걸러져 라우팅이 죽는다.
+    ROUTING: ${OLLAMA_ROUTING_MODEL:qwen2.5:7b}
+  # response_format 으로 JSON 모드를 켠다 — 작은 모델에서 준수율이 크게 오른다.
+  json-mode: true
+  # 파라미터가 적은 모델은 첫 시도에서 스키마를 놓치는 일이 잦다.
+  max-parse-attempts: 3
+  temperature: 0.1
+  max-tokens: 2048
+  # 로컬 추론은 첫 토큰까지 오래 걸린다. 모델 로딩까지 감안한다.
+  timeout-ms: 180000
+  max-retries: 1

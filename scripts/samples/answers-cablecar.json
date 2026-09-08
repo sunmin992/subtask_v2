@@ -1,0 +1,7 @@
+{
+  "spec-transport": "케이블카",
+  "spec-lodging": "호텔",
+  "ent-cablecar.정원": 8,
+  "ent-cablecar.운행간격": 3.0,
+  "ent-hotel.객실수": 200
+}

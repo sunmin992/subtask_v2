@@ -1,0 +1,198 @@
+[
+  {
+    "modelId": "visitor-generator",
+    "kind": "ATOMIC",
+    "displayName": "방문객 생성기",
+    "ports": {
+      "in": [],
+      "out": [
+        "visitor"
+      ]
+    },
+    "stateVars": {
+      "emitted": "int",
+      "active": "bool"
+    },
+    "params": {
+      "도착간격": {
+        "type": "DOUBLE",
+        "unit": "분",
+        "required": true
+      },
+      "총방문객": {
+        "type": "INT",
+        "unit": "명",
+        "default": 2147483647
+      }
+    }
+  },
+  {
+    "modelId": "cable-car",
+    "kind": "ATOMIC",
+    "displayName": "케이블카",
+    "ports": {
+      "in": [
+        "in"
+      ],
+      "out": [
+        "out"
+      ]
+    },
+    "stateVars": {
+      "queue": "list",
+      "carried": "int",
+      "maxQueue": "int"
+    },
+    "params": {
+      "정원": {
+        "type": "INT",
+        "unit": "명",
+        "required": true
+      },
+      "운행간격": {
+        "type": "DOUBLE",
+        "unit": "분",
+        "required": true
+      }
+    }
+  },
+  {
+    "modelId": "shuttle-bus",
+    "kind": "ATOMIC",
+    "displayName": "셔틀버스 1대",
+    "ports": {
+      "in": [
+        "in"
+      ],
+      "out": [
+        "out"
+      ]
+    },
+    "stateVars": {
+      "queue": "list",
+      "carried": "int",
+      "maxQueue": "int"
+    },
+    "params": {
+      "정원": {
+        "type": "INT",
+        "unit": "명",
+        "required": true
+      },
+      "왕복시간": {
+        "type": "DOUBLE",
+        "unit": "분",
+        "required": true
+      }
+    }
+  },
+  {
+    "modelId": "monorail",
+    "kind": "ATOMIC",
+    "displayName": "모노레일",
+    "ports": {
+      "in": [
+        "in"
+      ],
+      "out": [
+        "out"
+      ]
+    },
+    "stateVars": {
+      "queue": "list",
+      "carried": "int",
+      "maxQueue": "int"
+    },
+    "params": {
+      "정원": {
+        "type": "INT",
+        "unit": "명",
+        "required": true
+      },
+      "배차간격": {
+        "type": "DOUBLE",
+        "unit": "분",
+        "required": true
+      }
+    }
+  },
+  {
+    "modelId": "lodging",
+    "kind": "ATOMIC",
+    "displayName": "숙박시설",
+    "ports": {
+      "in": [
+        "in"
+      ],
+      "out": [
+        "out"
+      ]
+    },
+    "stateVars": {
+      "checkouts": "list",
+      "admitted": "int",
+      "rejected": "int"
+    },
+    "params": {
+      "객실수": {
+        "type": "INT",
+        "unit": "실",
+        "required": true
+      },
+      "평균숙박시간": {
+        "type": "DOUBLE",
+        "unit": "분",
+        "required": true
+      }
+    }
+  },
+  {
+    "modelId": "transducer",
+    "kind": "ATOMIC",
+    "displayName": "집계기",
+    "ports": {
+      "in": [
+        "arrive",
+        "done"
+      ],
+      "out": []
+    },
+    "stateVars": {
+      "arrived": "int",
+      "solved": "int",
+      "totalTurnaround": "double"
+    },
+    "params": {
+      "관측시간": {
+        "type": "DOUBLE",
+        "unit": "분",
+        "default": "horizon"
+      }
+    }
+  },
+  {
+    "modelId": "processor",
+    "kind": "ATOMIC",
+    "displayName": "단일 처리기 (고전 예제)",
+    "ports": {
+      "in": [
+        "in"
+      ],
+      "out": [
+        "out"
+      ]
+    },
+    "stateVars": {
+      "job": "any",
+      "sigma": "double",
+      "processed": "int"
+    },
+    "params": {
+      "처리시간": {
+        "type": "DOUBLE",
+        "unit": "분",
+        "required": true
+      }
+    }
+  }
+]

@@ -1,0 +1,9 @@
+{
+  "spec-transport": "셔틀버스",
+  "spec-lodging": "콘도",
+  "multi-bus": 3,
+  "ent-bus#0.정원": 25,
+  "ent-bus#1.정원": 25,
+  "ent-bus#2.정원": 30,
+  "ent-condo.객실수": 150
+}

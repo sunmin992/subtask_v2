@@ -1,0 +1,21 @@
+# 로컬 개발용 PostgreSQL. 스키마는 Flyway 가 만든다.
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ses-scenario-db
+    environment:
+      POSTGRES_DB: ses_scenario
+      POSTGRES_USER: ses
+      POSTGRES_PASSWORD: ses
+    ports:
+      - "5432:5432"
+    volumes:
+      - ses-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ses -d ses_scenario"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  ses-pgdata:
