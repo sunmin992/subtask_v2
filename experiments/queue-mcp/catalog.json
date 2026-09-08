@@ -1,0 +1,13 @@
+{
+  "modelId": "external-simpy-fifo",
+  "version": "1.0.0",
+  "capability": "fifo-single-server",
+  "description": "SimPy Resource 기반 단일 서버 FIFO 처리기. 유한 도착 이벤트를 받아 전체 작업을 완료할 때까지 처리한다.",
+  "source": {"kind": "experiment-adapter-with-external-library", "package": "simpy", "version": "4.1.1", "url": "https://pypi.org/project/simpy/4.1.1/", "adapter": "processor/processor.py"},
+  "runtime": {"kind": "docker", "image": "ses-queue-processor:1.0.0", "protocol": "json-stdin-stdout-v1"},
+  "ports": {"in": {"name": "in", "dataType": "job", "unit": "건"}, "out": {"name": "out", "dataType": "job", "unit": "건"}},
+  "timeUnit": "분",
+  "parameters": [{"name": "serviceTime", "type": "DOUBLE", "unit": "분", "required": true, "range": {"min": 0.01, "max": 10, "allowed": []}, "question": "작업 한 건의 처리시간은 몇 분인가요?"}],
+  "limits": {"maxJobs": 100, "servers": 1, "discipline": "FIFO", "termination": "drain-all-jobs"}
+}
+
