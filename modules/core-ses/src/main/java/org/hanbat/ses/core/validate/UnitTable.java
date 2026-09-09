@@ -54,6 +54,20 @@ public final class UnitTable {
     private UnitTable() {
     }
 
+    /** 같은 단위면 1, 알려진 같은 차원이면 환산 배율. 서로 다른 미등록 단위는 추측하지 않는다. */
+    public static Optional<Double> conversionFactor(String from, String to, Map<String, String> aliases) {
+        String a = normalize(from, aliases);
+        String b = normalize(to, aliases);
+        if (java.util.Objects.equals(a, b)) return Optional.of(1.0);
+        if (a == null || b == null) return Optional.empty();
+        Unit source = UNITS.get(a);
+        Unit target = UNITS.get(b);
+        if (source == null || target == null || source.dimension() != target.dimension()) {
+            return Optional.empty();
+        }
+        return Optional.of(source.factor() / target.factor());
+    }
+
     /** 별칭 표를 적용해 표준 이름으로 접는다. */
     public static String normalize(String unit, Map<String, String> aliases) {
         if (unit == null) {

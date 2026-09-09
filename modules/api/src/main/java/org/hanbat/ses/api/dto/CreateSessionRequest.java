@@ -7,6 +7,10 @@ import jakarta.validation.constraints.NotBlank;
  */
 public record CreateSessionRequest(
         @NotBlank(message = "요청문이 필요합니다.") String request,
-        String templateId
+        String templateId,
+        org.hanbat.ses.dialogue.external.DataUsage usage
 ) {
+    public CreateSessionRequest(String request, String templateId) {
+        this(request, templateId, null);
+    }
 }

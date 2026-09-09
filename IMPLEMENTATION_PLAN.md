@@ -42,7 +42,7 @@ Pruning, 검증, 완료 판정은 전부 결정론적 Java 코드입니다. LLM�
 
 ```
                        ┌────────────────────────────────────────┐
- HTTP  ──▶  API Layer  │  SessionController · ScenarioController │
+ HTTP  ──▶  API Layer │  SessionController · ScenarioController │
                        │  RunController · TemplateController    │
                        └───────────────┬────────────────────────┘
                                        │

@@ -1,0 +1,131 @@
+[
+  {
+    "modelId": "vehicle-arrival",
+    "kind": "ATOMIC",
+    "displayName": "전기차 도착 (포아송)",
+    "ports": {
+      "in": [],
+      "out": [
+        "vehicle"
+      ]
+    },
+    "stateVars": {
+      "emitted": "long",
+      "sigma": "double",
+      "rng": "long",
+      "active": "bool"
+    },
+    "params": {
+      "평균도착간격": {
+        "type": "DOUBLE",
+        "unit": "분",
+        "required": true
+      },
+      "총차량수": {
+        "type": "INT",
+        "unit": "대",
+        "default": 2147483647
+      }
+    }
+  },
+  {
+    "modelId": "charger-fast",
+    "kind": "ATOMIC",
+    "displayName": "급속 충전기 1대",
+    "ports": {
+      "in": [
+        "assign"
+      ],
+      "out": [
+        "done",
+        "ready"
+      ]
+    },
+    "stateVars": {
+      "serving": "any",
+      "remaining": "double",
+      "rng": "long",
+      "completed": "int",
+      "busy": "double"
+    },
+    "params": {
+      "평균충전시간": {
+        "type": "DOUBLE",
+        "unit": "분",
+        "required": true
+      },
+      "충전출력": {
+        "type": "DOUBLE",
+        "unit": "kW",
+        "default": 100.0
+      }
+    }
+  },
+  {
+    "modelId": "charger-slow",
+    "kind": "ATOMIC",
+    "displayName": "완속 충전기 1대",
+    "ports": {
+      "in": [
+        "assign"
+      ],
+      "out": [
+        "done",
+        "ready"
+      ]
+    },
+    "stateVars": {
+      "serving": "any",
+      "remaining": "double",
+      "rng": "long",
+      "completed": "int",
+      "busy": "double"
+    },
+    "params": {
+      "평균충전시간": {
+        "type": "DOUBLE",
+        "unit": "분",
+        "required": true
+      },
+      "충전출력": {
+        "type": "DOUBLE",
+        "unit": "kW",
+        "default": 7.0
+      }
+    }
+  },
+  {
+    "modelId": "queue-transducer",
+    "kind": "ATOMIC",
+    "displayName": "공유 대기열 겸 집계기",
+    "ports": {
+      "in": [
+        "arrive",
+        "done",
+        "ready"
+      ],
+      "out": [
+        "assign"
+      ]
+    },
+    "stateVars": {
+      "waiting": "list",
+      "free": "list",
+      "queueArea": "double",
+      "busyArea": "double",
+      "waitSum": "double"
+    },
+    "params": {
+      "최대대기대수": {
+        "type": "INT",
+        "unit": "대",
+        "default": 2147483647
+      },
+      "관측시간": {
+        "type": "DOUBLE",
+        "unit": "분",
+        "default": "horizon"
+      }
+    }
+  }
+]

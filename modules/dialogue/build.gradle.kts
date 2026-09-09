@@ -6,6 +6,7 @@ dependencies {
     implementation(project(":modules:llm"))
     implementation("org.springframework.boot:spring-boot-starter")
     implementation("org.springframework:spring-expression")
+    implementation("com.fasterxml.jackson.core:jackson-databind")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
 }

@@ -38,7 +38,7 @@ public class SessionController {
      */
     @PostMapping
     public ResponseEntity<SessionResponse> create(@Valid @RequestBody CreateSessionRequest body) {
-        SessionResponse response = facade.create(body.request(), body.templateId());
+        SessionResponse response = facade.create(body.request(), body.templateId(), body.usage());
         HttpStatus status = response.sessionId() == null
                 ? HttpStatus.OK : HttpStatus.CREATED;
         return ResponseEntity.status(status).body(response);

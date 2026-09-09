@@ -38,6 +38,13 @@ public class ScenarioEntity {
     private Map<String, Object> params;
 
     @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "data_evidence", columnDefinition = "jsonb", nullable = false)
+    private Map<String, Object> dataEvidence = Map.of();
+
+    public Map<String, Object> getDataEvidence() { return dataEvidence; }
+    public void setDataEvidence(Map<String, Object> value) { dataEvidence = value; }
+
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "sim_config", columnDefinition = "jsonb", nullable = false)
     private SimulatorConfig simConfig;
 

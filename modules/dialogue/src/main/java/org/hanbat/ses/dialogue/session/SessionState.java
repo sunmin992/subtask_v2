@@ -9,6 +9,7 @@ import java.util.UUID;
 
 import org.hanbat.ses.core.model.SesNode;
 import org.hanbat.ses.core.validate.ValidationIssue;
+import org.hanbat.ses.dialogue.external.SlotProvenance;
 
 /**
  * 세션 상태.
@@ -17,6 +18,8 @@ import org.hanbat.ses.core.validate.ValidationIssue;
  * 실제 진행 상황은 트리가 얼마나 가지치기되었는지로 판단한다. 두 곳에서 진행을
  * 추적하면 반드시 어긋나고, 그때 믿을 것은 트리 쪽이다.
  *
+ * @param provenance 답변마다 그 값이 어디에서 왔는지. answers 만으로는 사용자가 말한 값과
+ *                   서버가 채운 값이 구별되지 않는다 — 결과를 검토할 때 가장 먼저 필요한 구분이다.
  * @param history 직전 트리들. undo 한 번이 트리 하나 되돌리기로 끝나게 해 준다.
  */
 public record SessionState(
@@ -27,6 +30,7 @@ public record SessionState(
         String request,
         SesNode workingSes,
         Map<String, Object> answers,
+        Map<String, SlotProvenance> provenance,
         int turnCount,
         List<ValidationIssue> issues,
         List<Question> pendingQuestions,
@@ -43,6 +47,8 @@ public record SessionState(
     public SessionState {
         answers = answers == null ? Map.of()
                 : java.util.Collections.unmodifiableMap(new LinkedHashMap<>(answers));
+        provenance = provenance == null ? Map.of()
+                : java.util.Collections.unmodifiableMap(new LinkedHashMap<>(provenance));
         issues = issues == null ? List.of() : List.copyOf(issues);
         pendingQuestions = pendingQuestions == null ? List.of() : List.copyOf(pendingQuestions);
         history = history == null ? List.of() : List.copyOf(history);
@@ -52,11 +58,27 @@ public record SessionState(
                                      String request, SesNode ses) {
         Instant now = Instant.now();
         return new SessionState(id, templateId, templateVersion, Phase.ASSEMBLING, request,
-                ses, Map.of(), 0, List.of(), List.of(), null, List.of(), null, now, now);
+                ses, Map.of(), Map.of(), 0, List.of(), List.of(), null, List.of(), null, now, now);
     }
 
     public SessionState advance(SesNode newSes, Phase newPhase,
                                 Map<String, Object> newAnswers,
+                                List<Question> questions,
+                                List<ValidationIssue> newIssues,
+                                String derivedExplanation) {
+        return advance(newSes, newPhase, newAnswers, Map.of(), questions, newIssues,
+                derivedExplanation);
+    }
+
+    /**
+     * 값과 함께 그 값의 출처도 남기며 한 턴 나아간다.
+     *
+     * <p>출처를 별도 메서드로 나중에 붙이지 않는 이유는, 값이 트리에 들어가는 시점과
+     * 출처가 기록되는 시점이 갈리면 그 사이에 예외가 하나 끼는 날 출처 없는 값이 남기 때문이다.
+     */
+    public SessionState advance(SesNode newSes, Phase newPhase,
+                                Map<String, Object> newAnswers,
+                                Map<String, SlotProvenance> newProvenance,
                                 List<Question> questions,
                                 List<ValidationIssue> newIssues,
                                 String derivedExplanation) {
@@ -69,33 +91,37 @@ public record SessionState(
         if (newAnswers != null) {
             merged.putAll(newAnswers);
         }
+        Map<String, SlotProvenance> mergedProvenance = new LinkedHashMap<>(provenance);
+        if (newProvenance != null) {
+            mergedProvenance.putAll(newProvenance);
+        }
         return new SessionState(sessionId, templateId, templateVersion, newPhase, request,
-                newSes, merged, turnCount + 1, newIssues, questions, derivedExplanation,
-                newHistory, scenarioId, createdAt, Instant.now());
+                newSes, merged, mergedProvenance, turnCount + 1, newIssues, questions,
+                derivedExplanation, newHistory, scenarioId, createdAt, Instant.now());
     }
 
     /** 트리를 바꾸지 않고 같은 질문을 다시 낸다 — 턴 수는 늘지만 이력은 남기지 않는다. */
     public SessionState reask(List<Question> questions, List<ValidationIssue> newIssues) {
         return new SessionState(sessionId, templateId, templateVersion, Phase.ELICITING, request,
-                workingSes, answers, turnCount + 1, newIssues, questions, derivedFrom,
+                workingSes, answers, provenance, turnCount + 1, newIssues, questions, derivedFrom,
                 history, scenarioId, createdAt, Instant.now());
     }
 
     public SessionState withPhase(Phase newPhase) {
         return new SessionState(sessionId, templateId, templateVersion, newPhase, request,
-                workingSes, answers, turnCount, issues, pendingQuestions, derivedFrom,
+                workingSes, answers, provenance, turnCount, issues, pendingQuestions, derivedFrom,
                 history, scenarioId, createdAt, Instant.now());
     }
 
     public SessionState withScenario(UUID newScenarioId) {
         return new SessionState(sessionId, templateId, templateVersion, phase, request,
-                workingSes, answers, turnCount, issues, pendingQuestions, derivedFrom,
+                workingSes, answers, provenance, turnCount, issues, pendingQuestions, derivedFrom,
                 history, newScenarioId, createdAt, Instant.now());
     }
 
     public SessionState withQuestions(List<Question> questions) {
         return new SessionState(sessionId, templateId, templateVersion, phase, request,
-                workingSes, answers, turnCount, issues, questions, derivedFrom,
+                workingSes, answers, provenance, turnCount, issues, questions, derivedFrom,
                 history, scenarioId, createdAt, Instant.now());
     }
 
@@ -107,7 +133,7 @@ public record SessionState(
         List<SesNode> newHistory = new ArrayList<>(history);
         SesNode previous = newHistory.remove(newHistory.size() - 1);
         return new SessionState(sessionId, templateId, templateVersion, Phase.ELICITING, request,
-                previous, answers, Math.max(0, turnCount - 1), List.of(), List.of(),
+                previous, answers, provenance, Math.max(0, turnCount - 1), List.of(), List.of(),
                 "직전 턴으로 되돌렸습니다.", newHistory, null, createdAt, Instant.now());
     }
 

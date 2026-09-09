@@ -1,0 +1,308 @@
+{
+  "id" : "ev-charging",
+  "version" : "1.0.0",
+  "name" : "전기차 충전소 대기 시뮬레이션",
+  "routing" : {
+    "triggerPatterns" : [ "충전소", "전기차", "충전기", "EV", "ev charging", "충전" ],
+    "intentDescription" : "전기차 충전소의 충전기 종류·대수·대기 정책을 정하고 대기행렬을 시뮬레이션",
+    "priority" : 10,
+    "prerequisites" : [ ]
+  },
+  "slots" : [ {
+    "kind" : "STRUCTURAL",
+    "name" : "충전기종류",
+    "anchor" : {
+      "entityPath" : "충전소/충전기종류",
+      "axis" : "SPECIALIZATION",
+      "targetNodeId" : "spec-charger",
+      "varName" : null
+    },
+    "structuralKind" : "SELECT",
+    "options" : [ "급속충전기", "완속충전기" ],
+    "question" : {
+      "text" : "충전소에 놓을 충전기는 급속과 완속 중 어느 쪽인가요?",
+      "reaskText" : "급속충전기와 완속충전기 중에서 골라주세요.",
+      "hint" : "급속은 5~120분, 완속은 1~10시간대의 충전 시간을 가정합니다."
+    },
+    "dependsOn" : [ ]
+  }, {
+    "kind" : "STRUCTURAL",
+    "name" : "대기정책",
+    "anchor" : {
+      "entityPath" : "충전소/대기정책",
+      "axis" : "SPECIALIZATION",
+      "targetNodeId" : "spec-queue",
+      "varName" : null
+    },
+    "structuralKind" : "SELECT",
+    "options" : [ "무한대기", "유한대기" ],
+    "question" : {
+      "text" : "대기 공간이 찼을 때 어떻게 하나요?",
+      "reaskText" : "무한대기(모두 기다림)와 유한대기(자리가 없으면 돌아감) 중에서 골라주세요.",
+      "hint" : "유한대기를 고르면 대기 자리 수를 추가로 여쭙습니다."
+    },
+    "dependsOn" : [ ]
+  }, {
+    "kind" : "STRUCTURAL",
+    "name" : "급속충전기대수",
+    "anchor" : {
+      "entityPath" : "충전소/충전기종류/급속충전기/충전기",
+      "axis" : "MULTI_ASPECT",
+      "targetNodeId" : "multi-fast",
+      "varName" : null
+    },
+    "structuralKind" : "MULTIPLICITY",
+    "options" : [ ],
+    "question" : {
+      "text" : "급속충전기는 몇 대를 놓나요?",
+      "reaskText" : null,
+      "hint" : "1~20대"
+    },
+    "dependsOn" : [ "충전기종류" ]
+  }, {
+    "kind" : "STRUCTURAL",
+    "name" : "완속충전기대수",
+    "anchor" : {
+      "entityPath" : "충전소/충전기종류/완속충전기/충전기",
+      "axis" : "MULTI_ASPECT",
+      "targetNodeId" : "multi-slow",
+      "varName" : null
+    },
+    "structuralKind" : "MULTIPLICITY",
+    "options" : [ ],
+    "question" : {
+      "text" : "완속충전기는 몇 대를 놓나요?",
+      "reaskText" : null,
+      "hint" : "1~50대"
+    },
+    "dependsOn" : [ "충전기종류" ]
+  }, {
+    "kind" : "VALUE",
+    "name" : "급속기.평균충전시간",
+    "anchor" : {
+      "entityPath" : "충전소/충전기종류/급속충전기/충전기",
+      "axis" : "VARIABLE",
+      "targetNodeId" : "ent-fast-charger",
+      "varName" : "평균충전시간"
+    },
+    "type" : "DOUBLE",
+    "unit" : "분",
+    "range" : {
+      "min" : 5.0,
+      "max" : 120.0,
+      "allowed" : [ ],
+      "empty" : false
+    },
+    "defaultValue" : 30.0,
+    "inferable" : true,
+    "question" : {
+      "text" : "급속충전기 한 대의 평균 충전 시간은 몇 분인가요?",
+      "reaskText" : null,
+      "hint" : "50kW급이면 30분 안팎입니다."
+    },
+    "dependsOn" : [ "급속충전기대수" ]
+  }, {
+    "kind" : "VALUE",
+    "name" : "급속기.충전출력",
+    "anchor" : {
+      "entityPath" : "충전소/충전기종류/급속충전기/충전기",
+      "axis" : "VARIABLE",
+      "targetNodeId" : "ent-fast-charger",
+      "varName" : "충전출력"
+    },
+    "type" : "DOUBLE",
+    "unit" : "kW",
+    "range" : {
+      "min" : 50.0,
+      "max" : 350.0,
+      "allowed" : [ ],
+      "empty" : false
+    },
+    "defaultValue" : 100.0,
+    "inferable" : true,
+    "question" : {
+      "text" : "급속충전기의 출력은 몇 kW인가요?",
+      "reaskText" : null,
+      "hint" : "50 · 100 · 200 · 350kW 가 흔합니다."
+    },
+    "dependsOn" : [ "급속충전기대수" ]
+  }, {
+    "kind" : "VALUE",
+    "name" : "완속기.평균충전시간",
+    "anchor" : {
+      "entityPath" : "충전소/충전기종류/완속충전기/충전기",
+      "axis" : "VARIABLE",
+      "targetNodeId" : "ent-slow-charger",
+      "varName" : "평균충전시간"
+    },
+    "type" : "DOUBLE",
+    "unit" : "분",
+    "range" : {
+      "min" : 60.0,
+      "max" : 600.0,
+      "allowed" : [ ],
+      "empty" : false
+    },
+    "defaultValue" : 300.0,
+    "inferable" : true,
+    "question" : {
+      "text" : "완속충전기 한 대의 평균 충전 시간은 몇 분인가요?",
+      "reaskText" : null,
+      "hint" : "7kW급 완속은 5시간(300분) 안팎입니다."
+    },
+    "dependsOn" : [ "완속충전기대수" ]
+  }, {
+    "kind" : "VALUE",
+    "name" : "완속기.충전출력",
+    "anchor" : {
+      "entityPath" : "충전소/충전기종류/완속충전기/충전기",
+      "axis" : "VARIABLE",
+      "targetNodeId" : "ent-slow-charger",
+      "varName" : "충전출력"
+    },
+    "type" : "DOUBLE",
+    "unit" : "kW",
+    "range" : {
+      "min" : 3.0,
+      "max" : 22.0,
+      "allowed" : [ ],
+      "empty" : false
+    },
+    "defaultValue" : 7.0,
+    "inferable" : true,
+    "question" : {
+      "text" : "완속충전기의 출력은 몇 kW인가요?",
+      "reaskText" : null,
+      "hint" : "3.3 · 7 · 11 · 22kW 가 흔합니다."
+    },
+    "dependsOn" : [ "완속충전기대수" ]
+  }, {
+    "kind" : "VALUE",
+    "name" : "유한대기.최대대기대수",
+    "anchor" : {
+      "entityPath" : "충전소/대기정책/유한대기",
+      "axis" : "VARIABLE",
+      "targetNodeId" : "ent-bounded-queue",
+      "varName" : "최대대기대수"
+    },
+    "type" : "INT",
+    "unit" : "대",
+    "range" : {
+      "min" : 1.0,
+      "max" : 200.0,
+      "allowed" : [ ],
+      "empty" : false
+    },
+    "defaultValue" : 10,
+    "inferable" : true,
+    "question" : {
+      "text" : "충전을 기다릴 수 있는 대기 자리는 몇 대분인가요?",
+      "reaskText" : null,
+      "hint" : "이 수를 넘어 도착한 차량은 돌아간 것으로 집계합니다."
+    },
+    "dependsOn" : [ "대기정책" ]
+  }, {
+    "kind" : "VALUE",
+    "name" : "차량도착.평균도착간격",
+    "anchor" : {
+      "entityPath" : "충전소/차량도착",
+      "axis" : "VARIABLE",
+      "targetNodeId" : "ent-arrival",
+      "varName" : "평균도착간격"
+    },
+    "type" : "DOUBLE",
+    "unit" : "분",
+    "range" : {
+      "min" : 0.5,
+      "max" : 240.0,
+      "allowed" : [ ],
+      "empty" : false
+    },
+    "defaultValue" : 6.0,
+    "inferable" : true,
+    "question" : {
+      "text" : "충전소에 차량이 평균 몇 분에 한 대씩 오나요?",
+      "reaskText" : null,
+      "hint" : "도착 간격은 지수분포(포아송 도착)로 둡니다."
+    },
+    "dependsOn" : [ ]
+  }, {
+    "kind" : "VALUE",
+    "name" : "차량도착.총차량수",
+    "anchor" : {
+      "entityPath" : "충전소/차량도착",
+      "axis" : "VARIABLE",
+      "targetNodeId" : "ent-arrival",
+      "varName" : "총차량수"
+    },
+    "type" : "INT",
+    "unit" : "대",
+    "range" : {
+      "min" : 1.0,
+      "max" : 100000.0,
+      "allowed" : [ ],
+      "empty" : false
+    },
+    "defaultValue" : 500,
+    "inferable" : true,
+    "question" : {
+      "text" : "관측 기간 동안 최대 몇 대까지 받나요?",
+      "reaskText" : null,
+      "hint" : null
+    },
+    "dependsOn" : [ ]
+  } ],
+  "dialogue" : {
+    "maxTurns" : 6,
+    "maxQuestionsPerTurn" : 3,
+    "unfilledPolicy" : "USE_DEFAULT"
+  },
+  "binding" : {
+    "sesDefinitionId" : "evcharge-ses",
+    "rootEntity" : "충전소",
+    "pruningRules" : { },
+    "extraCouplings" : [ ]
+  },
+  "validation" : {
+    "crossFieldRules" : [ {
+      "expression" : "#v['급속기.평균충전시간'] <= 20 * #평균도착간격",
+      "message" : "급속충전기는 최대 20대까지 놓을 수 있는데, 이 충전 시간이면 20대로도 대기열이 계속 길어집니다. 충전 시간을 줄이거나 도착 간격을 늘려주세요.",
+      "involves" : [ "급속기.평균충전시간", "평균도착간격" ]
+    }, {
+      "expression" : "#v['완속기.평균충전시간'] <= 50 * #평균도착간격",
+      "message" : "완속충전기는 최대 50대까지 놓을 수 있는데, 이 충전 시간이면 50대로도 대기열이 계속 길어집니다. 급속충전기를 검토하거나 도착 간격을 늘려주세요.",
+      "involves" : [ "완속기.평균충전시간", "평균도착간격" ]
+    } ],
+    "unitAliases" : {
+      "min" : "분",
+      "hr" : "시간"
+    }
+  },
+  "execution" : {
+    "llm" : {
+      "model" : null,
+      "temperature" : 0.2,
+      "maxTokens" : 4096
+    },
+    "mcpTools" : [ ],
+    "simulator" : {
+      "engine" : "devs-internal",
+      "timeResolution" : 1.0,
+      "horizon" : 1440.0,
+      "seed" : 42,
+      "mode" : "SINGLE",
+      "replications" : 1,
+      "timeoutMs" : 30000
+    }
+  },
+  "output" : {
+    "format" : "COMPOSITE",
+    "sections" : [ "SUMMARY", "TABLE", "CHART" ],
+    "failurePolicy" : "PARTIAL_RESULT"
+  },
+  "meta" : {
+    "author" : "seed",
+    "createdAt" : "2026-09-08",
+    "description" : "전기차 충전소의 충전기 종류·대수·대기 정책을 정하고 대기행렬 지표(Lq·Wq·이용률)를 낸다."
+  }
+}

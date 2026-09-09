@@ -10,6 +10,9 @@ import org.hanbat.ses.core.model.SesNode;
 import org.hanbat.ses.core.prune.PruningEngine;
 import org.hanbat.ses.core.prune.PruningException;
 import org.hanbat.ses.core.validate.ValidationIssue;
+import org.hanbat.ses.dialogue.external.ExternalDataResolver;
+import org.hanbat.ses.dialogue.external.FillSource;
+import org.hanbat.ses.dialogue.external.SlotProvenance;
 import org.hanbat.ses.dialogue.routing.RequestRouter;
 import org.hanbat.ses.dialogue.routing.RoutingDecision;
 import org.hanbat.ses.dialogue.session.Phase;
@@ -72,6 +75,7 @@ public class DialogueController {
     private final CompletionJudge completionJudge;
     private final DerivationExplainer explainer;
     private final SlotExtractor extractor;
+    private final ExternalDataResolver externalData;
     private final ValidationChain validationChain;
     private final PruningEngine pruningEngine = new PruningEngine();
 
@@ -79,7 +83,8 @@ public class DialogueController {
                               SesRegistry sesDefinitions, RequestRouter router,
                               SlotJoiner joiner, QuestionPlanner planner,
                               CompletionJudge completionJudge, DerivationExplainer explainer,
-                              SlotExtractor extractor, ValidationChain validationChain) {
+                              SlotExtractor extractor, ExternalDataResolver externalData,
+                              ValidationChain validationChain) {
         this.sessions = sessions;
         this.templates = templates;
         this.sesDefinitions = sesDefinitions;
@@ -89,6 +94,7 @@ public class DialogueController {
         this.completionJudge = completionJudge;
         this.explainer = explainer;
         this.extractor = extractor;
+        this.externalData = externalData;
         this.validationChain = validationChain;
     }
 
@@ -100,6 +106,12 @@ public class DialogueController {
      * @param explicitTemplateId 라우팅을 건너뛰고 템플릿을 직접 지정할 때. Phase 3 E2E 가 이 경로를 쓴다.
      */
     public TurnResult createSession(String request, String explicitTemplateId) {
+        return createSession(request, explicitTemplateId,
+                org.hanbat.ses.dialogue.external.DataUsage.forRequest(request));
+    }
+
+    public TurnResult createSession(String request, String explicitTemplateId,
+                                   org.hanbat.ses.dialogue.external.DataUsage usage) {
         UUID sessionId = UUID.randomUUID();
         return SessionContext.with(sessionId, () -> {
             // 근거가 부족하면 임의로 고르지 않고 후보를 돌려준다 (FR-104).
@@ -125,10 +137,27 @@ public class DialogueController {
             SessionState state = SessionState.start(sessionId, template.id(), template.version(),
                     request, ses);
 
+            // 지금의 사실을 묻는 질문에 예측으로 답하지 않는다.
+            //
+            // 어느 도메인도 실시간 상태 슬롯을 갖고 있지 않으므로, 여기서 답할 수 있는 것은
+            // 가정한 구성의 예측뿐이다. 그것을 현재 상태처럼 내보내면 사용자는 시뮬레이션 결과를
+            // 사실로 읽는다. 문구에 특정 도메인을 적지 않는 이유도 같다 — 이 판정은 라우팅 전에,
+            // 도메인을 모른 채 일어난다.
+            if (usage == org.hanbat.ses.dialogue.external.DataUsage.CURRENT_STATUS) {
+                List<ValidationIssue> unavailable = List.of(ValidationIssue.error("<session>",
+                        "CURRENT_STATUS_UNAVAILABLE",
+                        "현재 이용 가능 여부는 확인할 수 없습니다. 실시간 상태 API 가 연결되어 있지 않습니다. "
+                                + "시뮬레이션 결과로 현재 상태를 대신 판단하지 않습니다. "
+                                + "가정한 구성의 예측이 필요하면 '시뮬레이션'으로 다시 요청해 주세요."));
+                SessionState failed = sessions.save(state.advance(ses, Phase.FAILED, Map.of(),
+                        List.of(), unavailable, unavailable.get(0).message()));
+                return TurnResult.failed(failed, unavailable);
+            }
+
             // 요청문에서 뽑을 수 있는 값을 먼저 채운다. 이미 말한 것을 다시 묻지 않기 위해서다.
             Prefill prefill = prefillFromRequest(request, template, state.workingSes());
             state = state.advance(prefill.ses(), Phase.ELICITING, prefill.accepted(),
-                    List.of(), prefill.issues(), prefill.note());
+                    prefill.provenance(), List.of(), prefill.issues(), prefill.note());
 
             return nextTurn(state, template, List.of(), prefill.note());
         });
@@ -140,7 +169,8 @@ public class DialogueController {
         return SessionContext.with(sessionId, () -> {
             SessionState state = sessions.require(sessionId);
             if (state.phase().terminal()) {
-                return TurnResult.complete(state);
+                return state.phase() == Phase.FAILED ? TurnResult.failed(state, state.issues())
+                        : TurnResult.complete(state);
             }
             SubtaskTemplate template = requireTemplate(state);
 
@@ -203,19 +233,31 @@ public class DialogueController {
             // 정원·운행간격 슬롯이 존재하지 않아 추출할 대상이 없었다. 여기서 다시 보지 않으면
             // 사용자가 이미 말한 값을 서버가 다시 묻게 된다 — 추출을 붙인 의미가 사라진다.
             Map<String, Object> allAnswers = merge(state.answers(), applied);
+
+            // 사용자가 직접 말한 값이라는 사실을 여기서 남긴다. 나중에 채워지는 값과
+            // 섞이기 전에 찍어 두어야, 같은 슬롯을 자동 채움이 덮었는지 알 수 있다.
+            Map<String, SlotProvenance> provenance = new LinkedHashMap<>();
+            applied.keySet().forEach(name -> provenance.put(name, SlotProvenance.userAnswer(name)));
+
+            // 자동으로 채운 값은 사용자에게 알려야 한다. 이 목록을 흘리면 사용자가 말한 적 없는
+            // 숫자가 조용히 결과에 들어가고, 나중에 결과를 의심할 때 짚을 자리가 없다.
+            List<ValidationIssue> autoFillNotes = new ArrayList<>();
+
             if (derivedNewSlots(before, after) && !after.isEmpty()) {
                 Prefill late = prefillFromRequest(state.request(), template, ses);
                 if (!late.accepted().isEmpty()) {
                     ses = late.ses();
                     allAnswers = merge(allAnswers, late.accepted());
                     applied = merge(applied, late.accepted());
+                    provenance.putAll(late.provenance());
+                    autoFillNotes.addAll(late.issues());
                     after = joiner.scanAndJoin(ses, template);
                     derived = (derived == null ? "" : derived + " ") + late.note();
                 }
             }
 
-            SessionState advanced = state.advance(ses, Phase.ELICITING, applied,
-                    List.of(), List.of(), derived);
+            SessionState advanced = state.advance(ses, Phase.ELICITING, applied, provenance,
+                    List.of(), autoFillNotes, derived);
             return nextTurn(advanced, template, after, derived);
         });
     }
@@ -223,6 +265,9 @@ public class DialogueController {
     /** 직전 턴 되돌리기. 트리 하나를 복원하면 열린 슬롯도 자동으로 되돌아간다. */
     public TurnResult undo(UUID sessionId) {
         SessionState state = sessions.require(sessionId);
+        if (state.issues().stream().anyMatch(i -> i.code().equals("CURRENT_STATUS_UNAVAILABLE"))) {
+            return TurnResult.failed(state, state.issues());
+        }
         if (!state.canUndo()) {
             return TurnResult.ask(sessions.save(state), state.pendingQuestions(),
                     "되돌릴 이전 턴이 없습니다.");
@@ -323,6 +368,7 @@ public class DialogueController {
 
         SesNode ses = state.workingSes();
         Map<String, Object> filled = new LinkedHashMap<>();
+        Map<String, SlotProvenance> provenance = new LinkedHashMap<>();
         List<ValidationIssue> notes = new ArrayList<>();
         for (ResolvedSlot slot : open) {
             Object value = defaultFor(slot);
@@ -334,14 +380,15 @@ public class DialogueController {
             try {
                 ses = pruningEngine.apply(ses, slot.anchor(), value);
                 filled.put(slot.name(), value);
+                provenance.put(slot.name(), SlotProvenance.templateDefault(slot.name(), value));
                 notes.add(ValidationIssue.warning(slot.name(), "FILLED_WITH_DEFAULT",
                         slot.name() + " 을(를) 기본값 " + value + " 로 채웠습니다."));
             } catch (PruningException e) {
                 notes.add(ValidationIssue.error(slot.name(), "DEFAULT_REJECTED", e.getMessage()));
             }
         }
-        SessionState advanced = state.advance(ses, Phase.VALIDATING, filled, List.of(), notes,
-                "턴 예산이 끝나 남은 항목을 기본값으로 채웠습니다.");
+        SessionState advanced = state.advance(ses, Phase.VALIDATING, filled, provenance,
+                List.of(), notes, "턴 예산이 끝나 남은 항목을 기본값으로 채웠습니다.");
 
         // 기본값을 채운 뒤에도 남은 슬롯이 있으면 (파생 슬롯) 한 번 더 돈다.
         List<ResolvedSlot> remaining = joiner.scanAndJoin(ses, template);
@@ -374,81 +421,84 @@ public class DialogueController {
     }
 
     private record Prefill(SesNode ses, Map<String, Object> accepted,
+                           Map<String, SlotProvenance> provenance,
                            List<ValidationIssue> issues, String note) {
     }
 
+    /** 채움 후보 하나 — 값, 그 값의 출처, 사용자 확인이 필요한지. */
+    private record Candidate(Object value, SlotProvenance provenance, boolean needsConfirmation) {
+    }
+
     /**
-     * 요청문에서 뽑은 값을 검증한 뒤 트리에 반영한다.
+     * 질문하지 않고도 알 수 있는 값을 먼저 채운다 — 외부 데이터, 그다음 요청문 추출.
      *
-     * <p>여러 번 돈다. 첫 회차에는 구조 슬롯만 열려 있으므로 "케이블카"까지만 채울 수 있고,
-     * 그것을 반영해야 비로소 "정원"과 "운행 간격" 슬롯이 생긴다.
-     * "8인승 케이블카를 3분 간격으로" 라는 한 문장을 한 번에 소화하려면 재스캔이 필요하다.
+     * <p>채움 경로가 셋이고 순서가 정해져 있다.
+     * <pre>
+     *   1. 외부 데이터  — 도메인이 아는 참고값. 그 안에서 다시 실시간/캐시/내장 3단으로 내려간다.
+     *   2. 요청문 추출  — 사용자가 이미 말한 값. LLM 이 없으면 이 단은 통째로 건너뛴다.
+     *   3. 질문        — 위 둘이 답하지 못한 것만 남는다.
+     * </pre>
+     * 순서를 이렇게 둔 이유는 뒤로 갈수록 비싸기 때문이다. 사용자에게 묻는 것이 가장 비싸고,
+     * 그 비용은 대화 턴 수로 곧장 나타난다. 사용자가 직접 답한 값은 이 경로들보다 언제나
+     * 강하다 — {@code submitAnswers} 가 나중에 덮어쓰고, 출처도 사용자 답변으로 다시 찍는다.
      *
-     * <p>검증에 걸린 값은 버리고 질문으로 돌린다. LLM 이 "정원 500명"을 뽑아냈어도
-     * 범위가 1~200 이면 채우지 않는다.
+     * <p>여러 번 돈다. 첫 회차에는 구조 슬롯만 열려 있으므로 "급속충전기"까지만 채울 수 있고,
+     * 그것을 반영해야 비로소 "평균 충전시간" 슬롯이 생긴다. 한 문장을 한 번에 소화하려면
+     * 재스캔이 필요하다.
+     *
+     * <p>어느 경로로 들어온 값이든 <b>예외 없이</b> {@code ValidationChain} 을 지난다.
+     * 외부 데이터라고 봐주지 않는다 — 공개 통계의 평균이 이 템플릿의 허용 범위 안이라는
+     * 보장은 어디에도 없고, 범위를 벗어난 값은 그냥 질문으로 돌린다.
      */
     private Prefill prefillFromRequest(String request, SubtaskTemplate template,
                                        SesNode startingSes) {
         SesNode original = startingSes;
         SesNode ses = original;
+        String domain = domainOf(template);
         Map<String, Object> accepted = new LinkedHashMap<>();
+        Map<String, SlotProvenance> provenance = new LinkedHashMap<>();
         List<ValidationIssue> notes = new ArrayList<>();
+
+        Map<String, ExternalDataResolver.Resolution> pendingCache = new LinkedHashMap<>();
 
         for (int round = 0; round < MAX_PREFILL_ROUNDS; round++) {
             List<ResolvedSlot> open = joiner.scanAndJoin(ses, template);
-            Map<String, SlotExtractor.Suggestion> suggestions =
-                    new LinkedHashMap<>(extractor.extract(request, open));
-            accepted.keySet().forEach(suggestions::remove);
-            if (suggestions.isEmpty()) {
+            Map<String, Candidate> candidates =
+                    gatherCandidates(request, template, domain, open, accepted.keySet(), ses, pendingCache);
+            if (candidates.isEmpty()) {
                 break;
             }
 
             Map<String, ResolvedSlot> byName = joiner.byName(open);
-            Map<String, Object> candidate = new LinkedHashMap<>();
-            suggestions.forEach((k, v) -> candidate.put(k, v.value()));
+            Map<String, Object> values = new LinkedHashMap<>();
+            candidates.forEach((k, v) -> values.put(k, v.value()));
 
-            // 추출값도 예외 없이 검증을 지난다. 통과하지 못한 값은 그냥 질문으로 돌린다.
             List<ValidationIssue> issues = validationChain.validateAnswers(
-                    new ValidationContext(ses, template, candidate, candidate, byName));
+                    new ValidationContext(ses, template, values, values, byName));
             java.util.Set<String> rejected = issues.stream()
                     .filter(ValidationIssue::isError)
                     .map(ValidationIssue::slot)
                     .collect(java.util.stream.Collectors.toSet());
 
             int appliedThisRound = 0;
-            for (Map.Entry<String, SlotExtractor.Suggestion> e : suggestions.entrySet()) {
+            for (Map.Entry<String, Candidate> e : candidates.entrySet()) {
                 if (rejected.contains(e.getKey())) {
-                    log.debug("추출값이 검증을 통과하지 못해 질문으로 돌립니다: {}", e.getKey());
+                    log.debug("채움 후보가 검증을 통과하지 못해 질문으로 돌립니다: {}", e.getKey());
                     continue;
                 }
                 ResolvedSlot slot = byName.get(e.getKey());
                 if (slot == null) {
                     continue;
                 }
+                Candidate candidate = e.getValue();
                 try {
-                    ses = pruningEngine.apply(ses, slot.anchor(), e.getValue().value());
-                    accepted.put(e.getKey(), e.getValue().value());
+                    ses = pruningEngine.apply(ses, slot.anchor(), candidate.value());
+                    accepted.put(e.getKey(), candidate.value());
+                    provenance.put(e.getKey(), candidate.provenance());
                     appliedThisRound++;
-
-                    // 구조 결정은 신뢰도와 무관하게 확인받는다.
-                    //
-                    // 확신에 찬 오해를 막을 방법이 그것뿐이다. llama3:latest 는
-                    // "8인승 곤돌라"를 셔틀버스 8대로 읽고 높은 신뢰도를 붙였다.
-                    // 값 하나하나는 범위 안이고 근거 문구도 문장에 있으니 검증은 전부 통과한다.
-                    // 구조가 바뀌면 시뮬레이션 전체가 다른 이야기가 되므로, 값 슬롯과 달리
-                    // 자동 채움을 조용히 넘겨서는 안 된다.
-                    if (slot.kind().isStructural()) {
-                        notes.add(ValidationIssue.warning(e.getKey(), "STRUCTURE_INFERRED",
-                                e.getKey() + " 을(를) " + e.getValue().value()
-                                        + " 로 이해했습니다. 맞나요? (근거: "
-                                        + e.getValue().evidence() + ")"));
-                    } else if (e.getValue().needsConfirmation()) {
-                        notes.add(ValidationIssue.warning(e.getKey(), "LOW_CONFIDENCE_EXTRACTION",
-                                e.getKey() + " 을(를) " + e.getValue().value()
-                                        + " 로 이해했습니다. 맞나요?"));
-                    }
+                    notes.addAll(confirmationNotes(e.getKey(), slot, candidate));
                 } catch (PruningException ex) {
-                    log.debug("추출값 적용 실패: {}", ex.getMessage());
+                    log.debug("채움 후보 적용 실패: {}", ex.getMessage());
                 }
             }
             if (appliedThisRound == 0) {
@@ -457,18 +507,126 @@ public class DialogueController {
         }
 
         if (accepted.isEmpty()) {
-            return new Prefill(original, Map.of(), List.of(), null);
+            return new Prefill(original, Map.of(), Map.of(), List.of(), null);
         }
         // 적용 후 검사에서 걸리면 미리 채운 값을 전부 버린다.
         // 요청문 해석이 어긋난 것이므로, 일부만 남기면 사용자가 말하지 않은 조합이 만들어진다.
         List<ValidationIssue> applied = validationChain.validateApplied(
                 new ValidationContext(ses, template, accepted, accepted, Map.of()));
         if (applied.stream().anyMatch(ValidationIssue::isError)) {
-            log.debug("추출값 조합이 검증을 통과하지 못해 전부 버립니다.");
-            return new Prefill(original, Map.of(), List.of(), null);
+            log.debug("미리 채운 값의 조합이 검증을 통과하지 못해 전부 버립니다.");
+            return new Prefill(original, Map.of(), Map.of(), List.of(), null);
         }
-        return new Prefill(ses, accepted, notes,
-                "요청문에서 " + accepted.size() + "개 항목을 읽어 미리 채웠습니다.");
+        pendingCache.keySet().retainAll(accepted.keySet());
+        externalData.commit(pendingCache);
+        return new Prefill(ses, accepted, provenance, notes, prefillNote(provenance));
+    }
+
+    /**
+     * 이번 라운드에 채울 수 있는 후보를 모은다 — 외부 데이터 먼저, 남은 슬롯만 LLM 에게.
+     *
+     * <p>이미 외부 데이터가 답한 슬롯을 추출 프롬프트에서 빼는 것이 중요하다. 넣어 두면
+     * 모델이 같은 값을 다시 제안하고, 그 제안이 뒤에 들어와 이기면서 출처가 조용히 바뀐다.
+     */
+    private Map<String, Candidate> gatherCandidates(String request, SubtaskTemplate template,
+                                                    String domain, List<ResolvedSlot> open,
+                                                    java.util.Set<String> alreadyAccepted, SesNode startingSes,
+                                                    Map<String, ExternalDataResolver.Resolution> pendingCache) {
+        Map<String, Candidate> out = new LinkedHashMap<>();
+
+        Map<String, ResolvedSlot> slots = joiner.byName(open);
+        externalData.resolveAll(domain, template.id(), open,
+                org.hanbat.ses.dialogue.external.DataUsage.SIMULATION,
+                template.validation().unitAliases(), trial -> {
+                    SesNode trialSes = startingSes;
+                    Map<String, Object> values = new LinkedHashMap<>();
+                    try {
+                        for (var entry : trial.entrySet()) {
+                            values.put(entry.getKey(), entry.getValue().value());
+                            trialSes = pruningEngine.apply(trialSes, slots.get(entry.getKey()).anchor(),
+                                    entry.getValue().value());
+                        }
+                        return !hasError(validationChain.validateApplied(
+                                new ValidationContext(trialSes, template, values, values, slots)));
+                    } catch (PruningException ex) {
+                        return false;
+                    }
+                }).forEach((name, resolution) -> {
+            if (!alreadyAccepted.contains(name)) {
+                out.put(name, new Candidate(resolution.value(), resolution.provenance(), false));
+                pendingCache.put(name, resolution);
+            }
+        });
+
+        List<ResolvedSlot> remaining = open.stream()
+                .filter(s -> !out.containsKey(s.name()) && !alreadyAccepted.contains(s.name()))
+                .toList();
+        if (remaining.isEmpty()) {
+            return out;
+        }
+        extractor.extract(request, remaining).forEach((name, suggestion) -> {
+            if (!alreadyAccepted.contains(name)) {
+                out.put(name, new Candidate(suggestion.value(),
+                        SlotProvenance.extracted(name, suggestion.evidence()),
+                        suggestion.needsConfirmation()));
+            }
+        });
+        return out;
+    }
+
+    /**
+     * 채운 값을 사용자에게 알릴지 정한다.
+     *
+     * <p>구조 결정은 신뢰도와 무관하게 확인받는다. 확신에 찬 오해를 막을 방법이 그것뿐이다 —
+     * llama3:latest 는 "8인승 곤돌라"를 셔틀버스 8대로 읽고 높은 신뢰도를 붙였다. 값 하나하나는
+     * 범위 안이고 근거 문구도 문장에 있으니 검증은 전부 통과한다. 구조가 바뀌면 시뮬레이션
+     * 전체가 다른 이야기가 되므로, 값 슬롯과 달리 자동 채움을 조용히 넘겨서는 안 된다.
+     *
+     * <p>외부 데이터로 채운 값도 알린다. 사용자가 말한 적 없는 숫자가 결과에 들어가는데
+     * 그 사실이 화면 어디에도 없으면, 나중에 결과를 의심할 때 짚을 자리가 없다.
+     */
+    private List<ValidationIssue> confirmationNotes(String name, ResolvedSlot slot,
+                                                    Candidate candidate) {
+        if (slot.kind().isStructural()) {
+            return List.of(ValidationIssue.warning(name, "STRUCTURE_INFERRED",
+                    name + " 을(를) " + candidate.value() + " 로 이해했습니다. 맞나요? ("
+                            + candidate.provenance().describe() + ")"));
+        }
+        if (candidate.provenance().source() == FillSource.EXTERNAL_DATA) {
+            return List.of(ValidationIssue.warning(name, "FILLED_FROM_EXTERNAL_DATA",
+                    name + " 을(를) 묻지 않고 " + candidate.value() + " 로 채웠습니다. ("
+                            + candidate.provenance().describe() + ")"));
+        }
+        if (candidate.needsConfirmation()) {
+            return List.of(ValidationIssue.warning(name, "LOW_CONFIDENCE_EXTRACTION",
+                    name + " 을(를) " + candidate.value() + " 로 이해했습니다. 맞나요?"));
+        }
+        return List.of();
+    }
+
+    /** 무엇을 어느 경로로 채웠는지 한 줄로 알린다. */
+    private static String prefillNote(Map<String, SlotProvenance> provenance) {
+        long external = provenance.values().stream()
+                .filter(p -> p.source() == FillSource.EXTERNAL_DATA).count();
+        long extracted = provenance.size() - external;
+        StringBuilder sb = new StringBuilder();
+        if (extracted > 0) {
+            sb.append("요청문에서 ").append(extracted).append("개 항목을 읽어 미리 채웠습니다.");
+        }
+        if (external > 0) {
+            if (sb.length() > 0) {
+                sb.append(' ');
+            }
+            sb.append("외부 데이터로 ").append(external).append("개 항목을 채웠습니다.");
+        }
+        return sb.toString();
+    }
+
+    /** 외부 데이터원은 도메인 이름으로 자료를 찾는다. 템플릿 id 로는 도메인을 알 수 없다. */
+    private String domainOf(SubtaskTemplate template) {
+        return sesDefinitions.find(template.binding().sesDefinitionId())
+                .map(SesDefinition::domain)
+                .orElse(null);
     }
 
     private List<ResolvedSlot> reopenForIssues(SessionState state, SubtaskTemplate template,

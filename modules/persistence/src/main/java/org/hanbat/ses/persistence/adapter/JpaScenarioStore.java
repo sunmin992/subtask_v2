@@ -31,6 +31,7 @@ public class JpaScenarioStore implements ScenarioStore {
         entity.setTemplateId(scenario.templateId());
         entity.setPes(scenario.pes().root());
         entity.setParams(scenario.params());
+        entity.setDataEvidence(scenario.dataEvidence());
         entity.setSimConfig(scenario.simConfig());
         entity.setOutput(scenario.output());
         entity.setSummary(scenario.summary());
@@ -44,6 +45,6 @@ public class JpaScenarioStore implements ScenarioStore {
     public Optional<Scenario> find(UUID scenarioId) {
         return repository.findById(scenarioId).map(e -> new Scenario(
                 e.getScenarioId(), e.getSessionId(), e.getTemplateId(), new Pes(e.getPes()),
-                e.getParams(), e.getSimConfig(), e.getOutput(), e.getSummary(), e.getCreatedAt()));
+                e.getParams(), e.getSimConfig(), e.getOutput(), e.getSummary(), e.getCreatedAt(), e.getDataEvidence()));
     }
 }

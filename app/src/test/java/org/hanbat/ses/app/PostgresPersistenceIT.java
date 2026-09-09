@@ -101,7 +101,9 @@ class PostgresPersistenceIT {
                 "dialogue_session", "scenario", "simulation_run", "llm_call_log");
 
         Integer models = jdbc.queryForObject("SELECT count(*) FROM model_base", Integer.class);
-        assertThat(models).isEqualTo(7);
+        assertThat(models).isEqualTo(11); // 리조트 7개 + 충전소 4개
+        assertThat(jdbc.queryForList("SELECT column_name FROM information_schema.columns "
+                + "WHERE table_name = 'scenario'", String.class)).contains("data_evidence");
     }
 
     @Test
@@ -116,8 +118,9 @@ class PostgresPersistenceIT {
         UUID sessionId = UUID.randomUUID();
         SessionState saved = SessionState.start(sessionId, TEMPLATE_ID, "1.0.0",
                 "리조트 시뮬레이션", pruned);
+        var provenance = org.hanbat.ses.dialogue.external.SlotProvenance.userAnswer("이동설비");
         sessions.save(saved.advance(pruned, Phase.ELICITING,
-                Map.of("이동설비", "셔틀버스"), List.of(), List.of(), "테스트"));
+                Map.of("이동설비", "셔틀버스"), Map.of("이동설비", provenance), List.of(), List.of(), "테스트"));
 
         SessionState loaded = sessions.require(sessionId);
 
@@ -127,6 +130,7 @@ class PostgresPersistenceIT {
                 .extracting(s -> s.slotName())
                 .contains("ent-bus#0.정원", "ent-bus#1.정원", "ent-bus#2.정원");
         assertThat(loaded.answers()).containsEntry("이동설비", "셔틀버스");
+        assertThat(loaded.provenance()).containsEntry("이동설비", provenance);
         assertThat(loaded.history()).hasSize(1);
     }
 
@@ -157,13 +161,17 @@ class PostgresPersistenceIT {
         Scenario scenario = new Scenario(UUID.randomUUID(), sessionId,
                 TEMPLATE_ID, pes,
                 Map.of("리조트/케이블카.정원", 8), SimulatorConfig.defaults(),
-                org.hanbat.ses.template.model.OutputSpec.defaults(), "요약", java.time.Instant.now());
+                org.hanbat.ses.template.model.OutputSpec.defaults(), "요약", java.time.Instant.now())
+                .withDataEvidence(Map.of("usage", "SIMULATION", "provenance", List.of(Map.of(
+                        "slot", "time", "observedAt", "2026-09-08T00:00:00Z",
+                        "quality", Map.of("assumed", true, "stale", false)))));
         scenarios.save(scenario);
 
         Scenario loaded = scenarios.require(scenario.scenarioId());
         assertThat(loaded.pes().leaves()).extracting(n -> n.name())
                 .containsExactlyInAnyOrder("방문객생성기", "집계기", "케이블카", "호텔");
         assertThat(loaded.summary()).isEqualTo("요약");
+        assertThat(loaded.dataEvidence()).isEqualTo(scenario.dataEvidence());
 
         SimulationRun run = runs.save(
                 SimulationRun.queued(UUID.randomUUID(), scenario.scenarioId())

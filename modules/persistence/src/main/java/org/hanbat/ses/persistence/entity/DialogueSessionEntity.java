@@ -14,6 +14,7 @@ import jakarta.persistence.Table;
 
 import org.hanbat.ses.core.model.SesNode;
 import org.hanbat.ses.core.validate.ValidationIssue;
+import org.hanbat.ses.dialogue.external.SlotProvenance;
 import org.hanbat.ses.dialogue.session.Phase;
 import org.hanbat.ses.dialogue.session.Question;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -57,6 +58,11 @@ public class DialogueSessionEntity {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb", nullable = false)
     private Map<String, Object> answers;
+
+    /** 답변마다의 출처. 사용자가 말한 값과 서버가 채운 값을 나중에 갈라 보려면 이것이 남아야 한다. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb", nullable = false)
+    private Map<String, SlotProvenance> provenance;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb", nullable = false)
@@ -147,6 +153,14 @@ public class DialogueSessionEntity {
 
     public void setAnswers(Map<String, Object> answers) {
         this.answers = answers;
+    }
+
+    public Map<String, SlotProvenance> getProvenance() {
+        return provenance;
+    }
+
+    public void setProvenance(Map<String, SlotProvenance> provenance) {
+        this.provenance = provenance;
     }
 
     public List<ValidationIssue> getIssues() {

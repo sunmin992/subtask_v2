@@ -183,6 +183,23 @@ class ResortDialogueE2eTest {
         assertThat(body).contains("호텔").contains("콘도");
     }
 
+    /**
+     * "현재"가 섞였다는 이유로 예측 요청이 막히면 안 된다.
+     *
+     * <p>용도 판정이 낱개 어간을 부분 문자열로 맞추던 때 이 요청이 상태 조회로 분류되어
+     * 세션이 열리지도 않았다 — "이용객"의 "이용"이 걸렸다. 리조트 도메인은 실시간 상태
+     * 조회와 아무 상관이 없으므로, 이 회귀는 도메인 하나를 통째로 막는 것이었다.
+     */
+    @Test
+    @DisplayName("\"현재\"가 섞인 예측 요청을 상태 조회로 오해하지 않는다")
+    void currentWordDoesNotBlockSimulation() throws Exception {
+        JsonNode created = createSession("현재 리조트 이용객 흐름을 시뮬레이션 해줘");
+
+        assertThat(created.get("outcome").asText()).isEqualTo("ASK");
+        assertThat(created.get("phase").asText()).isEqualTo("ELICITING");
+        assertThat(slots(created)).contains("이동설비", "숙박시설");
+    }
+
     @Test
     @DisplayName("LLM 없이도 키워드만으로 템플릿이 라우팅된다")
     void routesByKeywordWithoutLlm() throws Exception {

@@ -24,11 +24,22 @@ public record Scenario(
         SimulatorConfig simConfig,
         OutputSpec output,
         String summary,
-        Instant createdAt
+        Instant createdAt,
+        Map<String, Object> dataEvidence
 ) {
 
     public Scenario {
         params = params == null ? Map.of()
                 : java.util.Collections.unmodifiableMap(new LinkedHashMap<>(params));
+        dataEvidence = dataEvidence == null ? Map.of() : Map.copyOf(dataEvidence);
+    }
+
+    public Scenario(UUID scenarioId, UUID sessionId, String templateId, Pes pes, Map<String, Object> params,
+                    SimulatorConfig simConfig, OutputSpec output, String summary, Instant createdAt) {
+        this(scenarioId, sessionId, templateId, pes, params, simConfig, output, summary, createdAt, Map.of());
+    }
+
+    public Scenario withDataEvidence(Map<String, Object> evidence) {
+        return new Scenario(scenarioId, sessionId, templateId, pes, params, simConfig, output, summary, createdAt, evidence);
     }
 }

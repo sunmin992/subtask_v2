@@ -1,0 +1,491 @@
+{
+  "id": "evcharge-ses",
+  "domain": "evcharge",
+  "version": "1.0.0",
+  "tree": {
+    "nodeType": "ENTITY",
+    "id": "ent-station",
+    "name": "충전소",
+    "vars": [],
+    "axes": [
+      {
+        "nodeType": "ASPECT",
+        "id": "asp-inflow",
+        "name": "유입",
+        "components": [
+          {
+            "nodeType": "ENTITY",
+            "id": "ent-arrival",
+            "name": "차량도착",
+            "vars": [
+              {
+                "name": "평균도착간격",
+                "type": "DOUBLE",
+                "unit": "분",
+                "value": null,
+                "defaultValue": 6.0,
+                "inferable": true,
+                "range": {
+                  "min": 0.5,
+                  "max": 240.0,
+                  "allowed": [],
+                  "empty": false
+                },
+                "open": false
+              },
+              {
+                "name": "총차량수",
+                "type": "INT",
+                "unit": "대",
+                "value": null,
+                "defaultValue": 500,
+                "inferable": true,
+                "range": {
+                  "min": 1.0,
+                  "max": 100000.0,
+                  "allowed": [],
+                  "empty": false
+                },
+                "open": false
+              }
+            ],
+            "axes": [],
+            "modelRef": "vehicle-arrival",
+            "ports": [
+              {
+                "name": "vehicle",
+                "direction": "OUT",
+                "dataType": "any",
+                "unit": "대"
+              }
+            ],
+            "couplings": [],
+            "aliases": [],
+            "leaf": true
+          }
+        ],
+        "couplings": []
+      },
+      {
+        "nodeType": "SPEC",
+        "id": "spec-charger",
+        "name": "충전기종류",
+        "variants": [
+          {
+            "nodeType": "ENTITY",
+            "id": "ent-fast-bank",
+            "name": "급속충전기",
+            "vars": [],
+            "axes": [
+              {
+                "nodeType": "MULTI",
+                "id": "multi-fast",
+                "name": "충전기",
+                "prototype": {
+                  "nodeType": "ENTITY",
+                  "id": "ent-fast-charger",
+                  "name": "급속기",
+                  "vars": [
+                    {
+                      "name": "평균충전시간",
+                      "type": "DOUBLE",
+                      "unit": "분",
+                      "value": null,
+                      "defaultValue": null,
+                      "inferable": false,
+                      "range": {
+                        "min": 5.0,
+                        "max": 120.0,
+                        "allowed": [],
+                        "empty": false
+                      },
+                      "open": true
+                    },
+                    {
+                      "name": "충전출력",
+                      "type": "DOUBLE",
+                      "unit": "kW",
+                      "value": null,
+                      "defaultValue": 100.0,
+                      "inferable": true,
+                      "range": {
+                        "min": 50.0,
+                        "max": 350.0,
+                        "allowed": [],
+                        "empty": false
+                      },
+                      "open": false
+                    }
+                  ],
+                  "axes": [],
+                  "modelRef": "charger-fast",
+                  "ports": [
+                    {
+                      "name": "assign",
+                      "direction": "IN",
+                      "dataType": "any",
+                      "unit": "대"
+                    },
+                    {
+                      "name": "done",
+                      "direction": "OUT",
+                      "dataType": "any",
+                      "unit": "대"
+                    },
+                    {
+                      "name": "ready",
+                      "direction": "OUT",
+                      "dataType": "any",
+                      "unit": null
+                    }
+                  ],
+                  "couplings": [],
+                  "aliases": [],
+                  "leaf": true
+                },
+                "countRange": {
+                  "min": 1,
+                  "max": 20
+                },
+                "count": null,
+                "instances": [],
+                "resolved": false
+              }
+            ],
+            "modelRef": null,
+            "ports": [
+              {
+                "name": "assign",
+                "direction": "IN",
+                "dataType": "any",
+                "unit": "대"
+              },
+              {
+                "name": "done",
+                "direction": "OUT",
+                "dataType": "any",
+                "unit": "대"
+              },
+              {
+                "name": "ready",
+                "direction": "OUT",
+                "dataType": "any",
+                "unit": null
+              }
+            ],
+            "couplings": [
+              {
+                "kind": "EIC",
+                "fromEntity": "ent-fast-bank",
+                "fromPort": "assign",
+                "toEntity": "multi-fast",
+                "toPort": "assign"
+              },
+              {
+                "kind": "EOC",
+                "fromEntity": "multi-fast",
+                "fromPort": "done",
+                "toEntity": "ent-fast-bank",
+                "toPort": "done"
+              },
+              {
+                "kind": "EOC",
+                "fromEntity": "multi-fast",
+                "fromPort": "ready",
+                "toEntity": "ent-fast-bank",
+                "toPort": "ready"
+              }
+            ],
+            "aliases": [
+              "급속",
+              "급속충전",
+              "DC급속",
+              "fast charger",
+              "DC fast"
+            ],
+            "leaf": false
+          },
+          {
+            "nodeType": "ENTITY",
+            "id": "ent-slow-bank",
+            "name": "완속충전기",
+            "vars": [],
+            "axes": [
+              {
+                "nodeType": "MULTI",
+                "id": "multi-slow",
+                "name": "충전기",
+                "prototype": {
+                  "nodeType": "ENTITY",
+                  "id": "ent-slow-charger",
+                  "name": "완속기",
+                  "vars": [
+                    {
+                      "name": "평균충전시간",
+                      "type": "DOUBLE",
+                      "unit": "분",
+                      "value": null,
+                      "defaultValue": null,
+                      "inferable": false,
+                      "range": {
+                        "min": 60.0,
+                        "max": 600.0,
+                        "allowed": [],
+                        "empty": false
+                      },
+                      "open": true
+                    },
+                    {
+                      "name": "충전출력",
+                      "type": "DOUBLE",
+                      "unit": "kW",
+                      "value": null,
+                      "defaultValue": 7.0,
+                      "inferable": true,
+                      "range": {
+                        "min": 3.0,
+                        "max": 22.0,
+                        "allowed": [],
+                        "empty": false
+                      },
+                      "open": false
+                    }
+                  ],
+                  "axes": [],
+                  "modelRef": "charger-slow",
+                  "ports": [
+                    {
+                      "name": "assign",
+                      "direction": "IN",
+                      "dataType": "any",
+                      "unit": "대"
+                    },
+                    {
+                      "name": "done",
+                      "direction": "OUT",
+                      "dataType": "any",
+                      "unit": "대"
+                    },
+                    {
+                      "name": "ready",
+                      "direction": "OUT",
+                      "dataType": "any",
+                      "unit": null
+                    }
+                  ],
+                  "couplings": [],
+                  "aliases": [],
+                  "leaf": true
+                },
+                "countRange": {
+                  "min": 1,
+                  "max": 50
+                },
+                "count": null,
+                "instances": [],
+                "resolved": false
+              }
+            ],
+            "modelRef": null,
+            "ports": [
+              {
+                "name": "assign",
+                "direction": "IN",
+                "dataType": "any",
+                "unit": "대"
+              },
+              {
+                "name": "done",
+                "direction": "OUT",
+                "dataType": "any",
+                "unit": "대"
+              },
+              {
+                "name": "ready",
+                "direction": "OUT",
+                "dataType": "any",
+                "unit": null
+              }
+            ],
+            "couplings": [
+              {
+                "kind": "EIC",
+                "fromEntity": "ent-slow-bank",
+                "fromPort": "assign",
+                "toEntity": "multi-slow",
+                "toPort": "assign"
+              },
+              {
+                "kind": "EOC",
+                "fromEntity": "multi-slow",
+                "fromPort": "done",
+                "toEntity": "ent-slow-bank",
+                "toPort": "done"
+              },
+              {
+                "kind": "EOC",
+                "fromEntity": "multi-slow",
+                "fromPort": "ready",
+                "toEntity": "ent-slow-bank",
+                "toPort": "ready"
+              }
+            ],
+            "aliases": [
+              "완속",
+              "완속충전",
+              "AC완속",
+              "slow charger",
+              "AC"
+            ],
+            "leaf": false
+          }
+        ],
+        "selectedVariantId": null,
+        "resolved": false
+      },
+      {
+        "nodeType": "SPEC",
+        "id": "spec-queue",
+        "name": "대기정책",
+        "variants": [
+          {
+            "nodeType": "ENTITY",
+            "id": "ent-unbounded-queue",
+            "name": "무한대기",
+            "vars": [],
+            "axes": [],
+            "modelRef": "queue-transducer",
+            "ports": [
+              {
+                "name": "arrive",
+                "direction": "IN",
+                "dataType": "any",
+                "unit": "대"
+              },
+              {
+                "name": "done",
+                "direction": "IN",
+                "dataType": "any",
+                "unit": "대"
+              },
+              {
+                "name": "ready",
+                "direction": "IN",
+                "dataType": "any",
+                "unit": null
+              },
+              {
+                "name": "assign",
+                "direction": "OUT",
+                "dataType": "any",
+                "unit": "대"
+              }
+            ],
+            "couplings": [],
+            "aliases": [
+              "무제한대기",
+              "선착순",
+              "제한없음",
+              "FIFO"
+            ],
+            "leaf": true
+          },
+          {
+            "nodeType": "ENTITY",
+            "id": "ent-bounded-queue",
+            "name": "유한대기",
+            "vars": [
+              {
+                "name": "최대대기대수",
+                "type": "INT",
+                "unit": "대",
+                "value": null,
+                "defaultValue": null,
+                "inferable": false,
+                "range": {
+                  "min": 1.0,
+                  "max": 200.0,
+                  "allowed": [],
+                  "empty": false
+                },
+                "open": true
+              }
+            ],
+            "axes": [],
+            "modelRef": "queue-transducer",
+            "ports": [
+              {
+                "name": "arrive",
+                "direction": "IN",
+                "dataType": "any",
+                "unit": "대"
+              },
+              {
+                "name": "done",
+                "direction": "IN",
+                "dataType": "any",
+                "unit": "대"
+              },
+              {
+                "name": "ready",
+                "direction": "IN",
+                "dataType": "any",
+                "unit": null
+              },
+              {
+                "name": "assign",
+                "direction": "OUT",
+                "dataType": "any",
+                "unit": "대"
+              }
+            ],
+            "couplings": [],
+            "aliases": [
+              "유한버퍼",
+              "대기제한",
+              "제한대기",
+              "balking"
+            ],
+            "leaf": true
+          }
+        ],
+        "selectedVariantId": null,
+        "resolved": false
+      }
+    ],
+    "modelRef": null,
+    "ports": [],
+    "couplings": [
+      {
+        "kind": "IC",
+        "fromEntity": "ent-arrival",
+        "fromPort": "vehicle",
+        "toEntity": "spec-queue",
+        "toPort": "arrive"
+      },
+      {
+        "kind": "IC",
+        "fromEntity": "spec-queue",
+        "fromPort": "assign",
+        "toEntity": "spec-charger",
+        "toPort": "assign"
+      },
+      {
+        "kind": "IC",
+        "fromEntity": "spec-charger",
+        "fromPort": "done",
+        "toEntity": "spec-queue",
+        "toPort": "done"
+      },
+      {
+        "kind": "IC",
+        "fromEntity": "spec-charger",
+        "fromPort": "ready",
+        "toEntity": "spec-queue",
+        "toPort": "ready"
+      }
+    ],
+    "aliases": [],
+    "leaf": false
+  }
+}

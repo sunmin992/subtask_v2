@@ -27,6 +27,8 @@ public class ResultFormatter {
         OutputSpec spec = scenario.output();
         Map<String, Object> out = new LinkedHashMap<>();
 
+        out.put("dataEvidence", scenario.dataEvidence());
+
         out.put("status", result.status().name());
         out.put("partial", result.partial());
         out.put("endTime", result.endTime());
@@ -50,6 +52,9 @@ public class ResultFormatter {
     private String summary(Scenario scenario, SimulationResult result) {
         StringBuilder sb = new StringBuilder(scenario.summary());
         sb.append('\n');
+        if (scenario.dataEvidence().get("notice") instanceof String notice) {
+            sb.append(notice).append('\n');
+        }
 
         Map<String, Object> stats = result.statistics();
         appendSum(sb, stats, "도착 방문객", ".arrived");

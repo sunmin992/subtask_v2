@@ -41,6 +41,7 @@ public class JpaSessionStore implements SessionStore {
         entity.setRequest(state.request());
         entity.setWorkingSes(state.workingSes());
         entity.setAnswers(state.answers());
+        entity.setProvenance(state.provenance());
         entity.setIssues(state.issues());
         entity.setPendingQuestions(state.pendingQuestions());
         entity.setHistory(state.history());
@@ -71,6 +72,7 @@ public class JpaSessionStore implements SessionStore {
                 e.getSessionId(), e.getTemplateId(), e.getTemplateVersion(), e.getPhase(),
                 e.getRequest(), e.getWorkingSes(),
                 e.getAnswers() == null ? java.util.Map.of() : e.getAnswers(),
+                e.getProvenance() == null ? java.util.Map.of() : e.getProvenance(),
                 e.getTurnCount(),
                 e.getIssues() == null ? List.of() : e.getIssues(),
                 e.getPendingQuestions() == null ? List.of() : e.getPendingQuestions(),

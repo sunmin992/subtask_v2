@@ -12,6 +12,7 @@ public record ScenarioResponse(
         String summary,
         PesNode pes,
         Map<String, Object> params,
-        Map<String, Object> simConfig
+        Map<String, Object> simConfig,
+        Map<String, Object> dataEvidence
 ) {
 }

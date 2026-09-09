@@ -118,6 +118,63 @@ LLM 이 개입하는 곳은 세 군데뿐이고, 세 곳 모두 폴백이 있다
 추출된 값도 예외 없이 `ValidationChain` 을 지난다. LLM 이 "정원 500명"을 뽑아냈어도
 범위가 1~200 이면 채우지 않는다.
 
+**묻지 않고도 알 수 있는 값은 묻지 않는다.** 값 슬롯을 채우는 경로는 셋이고, 뒤로 갈수록
+비싸다 — 사용자에게 묻는 것이 가장 비싸고 그 비용은 질문 턴 수로 곧장 나타난다.
+
+```
+외부 데이터  ->  요청문 LLM 추출  ->  질문   ->  (턴 예산 소진) 템플릿 기본값
+```
+
+첫 경로는 그 안에서 다시 세 단으로 내려간다. 마지막 단이 서버에 함께 실린 데이터셋이라
+네트워크 없이도 동작한다.
+
+| 단 | 공급자 | 성질 |
+|---|---|---|
+| LIVE | `HttpExternalDataProvider` | 가장 새롭고 가장 자주 실패한다. 기본값은 꺼짐 |
+| CACHED | `SnapshotCacheProvider` | LIVE 성공분을 갈무리. TTL 이 지나면 없는 것으로 친다 |
+| BUNDLED | `BundledDatasetProvider` | `external-data/*.dataset.json`. 늘 있지만 갱신되지 않는다 |
+
+어느 경로로 들어왔든 값은 `ValidationChain` 을 지나고, 단위가 슬롯과 차원이 다르면 아예
+채택하지 않는다. 구조 결정은 이 경로를 타지 않는다 — 통계가 "이 지역 평균 급속기 3대"라고
+말해도 그것은 사용자의 계획이 아니다.
+
+**채운 값에는 출처가 붙는다.** 완성된 시나리오만 보면 "충전시간 34분"과 "충전시간 34분"은
+구별되지 않는다. 하나는 사용자가 말한 값이고 다른 하나는 서버가 채운 값이어도 그렇다.
+`SessionResponse.provenance` 가 슬롯마다 그 구분을 싣는다.
+
+```json
+{ "slot": "급속기.평균충전시간[0]", "source": "EXTERNAL_DATA", "sourceLabel": "외부 데이터",
+  "tier": "BUNDLED", "tierLabel": "내장 데이터셋",
+  "sourceId": "evcharge-reference-2026H1", "stated": false }
+```
+
+실시간 조회를 켜려면 엔드포인트만 주면 된다.
+
+```bash
+./gradlew :app:bootRun --args='--app.external-data.base-url=https://example.org/api/ev-stats'
+```
+
+**타임아웃 하나로는 부족하다.** `timeout-ms` 는 조회 <b>하나</b>의 상한이라, 값 슬롯이
+스무 개면 한 턴이 스무 배로 늘어진다. 그래서 상한을 두 겹 더 둔다.
+
+| 설정 | 기본값 | 막는 것 |
+|---|---|---|
+| `app.external-data.live-budget-ms` | `timeout-ms × max-attempts` | **턴 안** — 예산을 다 쓰면 남은 슬롯은 캐시·내장 데이터셋으로 내려간다 |
+| `app.external-data.live-failure-threshold` | 3 | **턴 사이** — 연속 실패가 쌓이면 실시간 단을 잠시 통째로 건너뛴다 |
+| `app.external-data.live-cooldown-ms` | 60000 | 건너뛰는 시간 |
+
+엔드포인트가 멎었을 때 충전기 20대 구성으로 잰 값이다. 조회 횟수가 슬롯 수를 따라가지 않는다.
+
+```
+              고치기 전          고친 뒤
+ 3대     6회 시도 · 1989ms    2회 시도 · 776ms
+10대   (20회 시도 예상)       2회 시도 · 632ms
+20대   (40회 시도 예상)       2회 시도 · 644ms
+```
+
+값을 못 받는 것이 아니라 **덜 새로운** 값을 받는다 — 예산을 넘긴 슬롯도 캐시나 내장
+데이터셋으로 채워지고, 어느 단에서 왔는지는 출처에 그대로 남는다.
+
 ---
 
 ## 모듈 구조
@@ -176,7 +233,7 @@ POST   /api/v1/models                   모델 베이스 등록
 ## 테스트
 
 ```bash
-./gradlew test              # 119개, Docker/API 키 불필요
+./gradlew test              # 136개, Docker/API 키 불필요
 ./gradlew integrationTest   # 4개, Testcontainers + PostgreSQL 16 (Docker 필요)
 ./gradlew :modules:llm:liveTest   # 3개, 실제 로컬 모델 호출 (Ollama 필요)
 ```
@@ -194,17 +251,25 @@ JPA 매핑과 Flyway 스키마가 어긋나면 이 태스크가 먼저 깨진다
 | 대상 | 방식 |
 |---|---|
 | `core-ses` | 속성 기반 (jqwik) — pruning 교환법칙, PES 유일성, 단조 감소 |
-| `core-devs` | 골든 테스트 — GPT 예제의 이론값 대조, zeno/타임아웃 안전장치 |
+| `core-devs` | zeno/타임아웃 안전장치 |
 | `template` | 템플릿-SES 정합성 위반 케이스, 서브태스크 DAG 위상 정렬·순환 검출 |
-| `scenario` | 계층 PES 평탄화, EIC/EOC 전개, 도메인 모델 물리 검산 |
+| `scenario` | 계층 PES 평탄화, EIC/EOC 전개, 도메인 모델 물리 검산, M/M/c 해석해 골든 대조 |
 | `api` | 자산 등록 거부 조건 (중복 노드 id, 포트 단위 불일치), 라우팅 후보 응답 |
 | `llm` | WireMock — 코드펜스 제거, 스키마 되돌림 복구, 파싱 재시도, 상태코드 구분 |
 | live | `OllamaLiveTest` — 실제 오픈 모델이 스키마대로 응답하는지 (`@Tag("live")`) |
-| E2E | `ResortDialogueE2eTest` (LLM 없음) + `LlmAssistedDialogueTest` (스텁 LLM) |
+| E2E | `ResortDialogueE2eTest` · `EvChargingDialogueE2eTest` (LLM 없음) + `LlmAssistedDialogueTest` (스텁 LLM) |
 | 통합 | `PostgresPersistenceIT` — Flyway 스키마, JSONB 폴리모픽 왕복, 매핑 검증 |
 
 `ResortDialogueE2eTest` 와 `LlmAssistedDialogueTest` 가 **함께** 통과하는 것이
 폴백 설계의 증거다. 전자는 LLM 을 끈 채로, 후자는 켠 채로 같은 결과에 도달한다.
+
+`EvChargingDialogueE2eTest` 는 다른 것을 증명한다 — 두 번째 도메인이 **코드 수정 없이**
+들어왔다는 것. 리조트에 맞춰 굳은 코드는 도메인이 하나뿐일 때는 드러나지 않는다.
+
+DEVS 엔진의 골든 기준선은 `MmcAnalyticGoldenTest` 다. 고전 GPT 예제의 "이론값"은 사건 목록을
+손으로 따라가 센 숫자라, 규칙 자체를 잘못 이해했다면 시험도 똑같이 잘못 센다. M/M/c 는
+**엔진 밖에서 온 공식**(Erlang C)과 맞대므로 사건 순서·동시각 처리·합류 전이·브로드캐스트
+배선이 모두 맞아야 값이 수렴한다.
 
 ---
 
@@ -217,7 +282,10 @@ app/src/main/resources/seed/
 ├─ resort.ses.json                        도메인 SES (공리·배선 검사 후 등록)
 ├─ resort.models.json                     모델 베이스 명세 7건
 ├─ resort-simulation.template.json        서브태스크 템플릿
-└─ resort-capacity-review.template.json   선행 의존이 있는 두 번째 템플릿
+├─ resort-capacity-review.template.json   선행 의존이 있는 두 번째 템플릿
+├─ evcharge.ses.json                      두 번째 도메인 — 전기차 충전소
+├─ evcharge.models.json                   모델 베이스 명세 4건
+└─ ev-charging.template.json              파생 슬롯이 충전기 종류별로 갈라지는 템플릿
 ```
 
 `DomainSeeder` 가 기동 시 이름 규칙(`*.ses.json` → `*.models.json` → `*.template.json`)으로
@@ -225,6 +293,23 @@ app/src/main/resources/seed/
 정작 그 검사가 잡아야 할 오류를 기본 데이터가 들고 온다.
 
 운영 중에 새 도메인을 넣을 때는 REST 로 같은 순서를 따른다. 코드 수정은 없다.
+
+충전소 도메인이 그 주장의 실증 사례다. 추가된 자바 코드는 원자 모델 네 개와 그 팩토리뿐이고
+— 모델의 거동은 데이터로 쓸 수 없다 — 라우팅·질문 생성·검증·실행 경로에는 충전소를 아는 코드가
+한 줄도 없다.
+
+```bash
+curl -s -X POST localhost:8080/api/v1/sessions -H 'Content-Type: application/json' -d '{"request":"급속 충전소 시뮬레이션 돌려줘"}'
+```
+
+```
+== 턴 1 ==  충전기종류 [SELECT], 대기정책 [SELECT]
+== 턴 2 ==  급속충전기대수 [MULTIPLICITY]          <- 급속충전기 선택으로 파생
+== 완료 ==  급속기.평균충전시간은 묻지 않는다        <- 내장 데이터셋이 34분으로 채움
+```
+
+완속충전기를 골랐다면 마지막 줄이 달라진다. 완속기의 체류 시간은 주거·직장·노상 어디에
+놓였는지에 따라 갈려 대표값이 성립하지 않으므로, 데이터셋에 없고 그래서 질문이 나간다.
 
 ## 확장
 
@@ -236,6 +321,8 @@ app/src/main/resources/seed/
 | 새 원자 모델 | `AtomicModelFactory` 구현 + `model_base` 행 | 클래스 1개 |
 | 새 검증 규칙 | `SlotValidator` 구현 | 클래스 1개 |
 | LLM 공급자 추가 | `HttpLlmGateway` 상속 (경로·본문·응답 매핑 3개) | 클래스 1개 |
+| 외부 데이터원 추가 | `ExternalDataProvider` 구현 | 클래스 1개 |
+| 도메인 참고값 추가 | `external-data/*.dataset.json` 배치 | 없음 |
 | 시뮬레이터 교체 | `ScenarioExecutor` 구현 추가 | 인터페이스 뒤 |
 
 `AtomicModelFactory` 와 `SlotValidator` 는 Spring 이 구현체를 모아 주므로 등록
@@ -344,6 +431,9 @@ FQCN 을 DB 문자열로 들고 있으면 리팩터링 한 번에 조용히 깨�
 ---
 
 ## 진행 상황
+
+외부 API의 검증·재시도·캐시 보호·현재 상태와 예시 계산의 구분은
+[외부 데이터 처리 안내](docs/external-data-validation.md)에 정리되어 있습니다.
 
 | Phase | 내용 | 상태 |
 |---|---|---|

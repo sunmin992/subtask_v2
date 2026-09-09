@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import org.hanbat.ses.api.dto.IssueView;
 import org.hanbat.ses.api.dto.ProgressView;
+import org.hanbat.ses.api.dto.ProvenanceView;
 import org.hanbat.ses.api.dto.QuestionView;
 import org.hanbat.ses.api.dto.ScenarioResponse;
 import org.hanbat.ses.api.dto.SessionResponse;
@@ -53,6 +54,12 @@ public class SessionFacade {
         return toResponse(dialogue.createSession(request, templateId));
     }
 
+    public SessionResponse create(String request, String templateId,
+            org.hanbat.ses.dialogue.external.DataUsage usage) {
+        return usage == null ? create(request, templateId)
+                : toResponse(dialogue.createSession(request, templateId, usage));
+    }
+
     public SessionResponse answer(UUID sessionId, Map<String, Object> answers) {
         return toResponse(dialogue.submitAnswers(sessionId, answers));
     }
@@ -64,7 +71,8 @@ public class SessionFacade {
     public SessionResponse get(UUID sessionId) {
         SessionState state = dialogue.get(sessionId);
         return toResponse(new TurnResult(
-                state.phase() == Phase.BUILDING || state.phase() == Phase.DONE
+                state.phase() == Phase.FAILED ? TurnOutcome.FAILED
+                        : state.phase() == Phase.BUILDING || state.phase() == Phase.DONE
                         ? TurnOutcome.COMPLETE : TurnOutcome.ASK,
                 state, state.pendingQuestions(), state.issues(), state.derivedFrom()));
     }
@@ -81,6 +89,9 @@ public class SessionFacade {
      */
     public ScenarioResponse createScenario(UUID sessionId) {
         SessionState state = dialogue.get(sessionId);
+        if (state.phase() == Phase.FAILED) {
+            throw new SessionNotReadyException(sessionId, "검증을 완료한 시뮬레이션 세션만 실행할 수 있습니다.");
+        }
         if (state.scenarioId() != null) {
             return toScenarioResponse(scenarios.require(state.scenarioId()));
         }
@@ -90,7 +101,10 @@ public class SessionFacade {
         }
         SubtaskTemplate template = dialogue.requireTemplate(state);
         Scenario scenario = scenarios.save(
-                scenarioBuilder.build(sessionId, template, state.workingSes()));
+                scenarioBuilder.build(sessionId, template, state.workingSes()).withDataEvidence(Map.of(
+                        "usage", "SIMULATION",
+                        "notice", "설정과 참고자료를 이용한 예시 계산이며, 현재 현황을 나타내지 않습니다.",
+                        "provenance", state.provenance().values().stream().map(ProvenanceView::of).toList())));
         sessions.save(state.withScenario(scenario.scenarioId()).withPhase(Phase.DONE));
         return toScenarioResponse(scenario);
     }
@@ -109,7 +123,7 @@ public class SessionFacade {
                         "timeResolution", s.simConfig().timeResolution(),
                         "seed", String.valueOf(s.simConfig().seed()),
                         "mode", s.simConfig().mode().name(),
-                        "replications", s.simConfig().replications()));
+                        "replications", s.simConfig().replications()), s.dataEvidence());
     }
 
     private SessionResponse toResponse(TurnResult result) {
@@ -122,7 +136,8 @@ public class SessionFacade {
                     result.candidates().stream()
                             .map(c -> new SessionResponse.CandidateView(
                                     c.templateId(), c.name(), c.intent(), c.score(), c.why()))
-                            .toList());
+                            .toList(),
+                    List.of());
         }
         SessionState state = result.state();
         SesProgress.Counts counts = progress.count(state.workingSes());
@@ -141,7 +156,8 @@ public class SessionFacade {
                 snapshots.assemble(state.workingSes()),
                 state.scenarioId(),
                 state.canUndo(),
-                List.of());
+                List.of(),
+                state.provenance().values().stream().map(ProvenanceView::of).toList());
     }
 
     static List<Question> questions(TurnResult result) {
